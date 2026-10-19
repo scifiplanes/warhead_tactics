@@ -1,0 +1,39 @@
+# Warhead tactics
+
+Present tense. Deltas → `docs/changelog.md`.
+
+## Product
+
+Mobile web survivors run. The deck is the run's airdrop pool. The Lead steps off alone, and the cards fall in as crates. They can hold a path into a harder field, or reach the LZ, arm the flare, wait out the craft, and load one by one. An empty deck fields one Cell. The first Cell is the Lead. Wipe loses. The player builds a counted deck (cap 12) and picks Light, Standard, or Heavy. The Cell is free. Every other researched card is paid in credits for that deployment. Taking the same card again, in one deck or on the next round, raises that price by its base for each step. A round that leaves the card out cools one step. Unknown cards stay hidden until a field find. A find must be researched, at twenty times its deploy price, before it can be bought. Credits come from kills, extract, the Purge and Haul bounties, and salvage, intel, and samples. Cards airdrop in shuffled order. Pause, a roster, a nine-slot toolbar, and an end tally sit on the field. One campaign save, which can be restarted. A system menu sets thud volume and mute. A debug menu sets the field dither: levels, spread, scale, size, pattern, strength, cut, ink, blend, and whether it sits on the mud or the whole field. No campaign map.
+
+## World
+
+Three Uluses already annihilated each other. Residue is rad, burn-chem, bio, and AI-oxide. The section can field Cells, Aegis, Forge, Wisp, an engineer, a relay, a recondog, a copter, a hunter-killer, a biohawk, a middlestrike, a cyberassassin, a cyberoperator, medic, jeep, bike, buggy, hoverbike, MRAP, HEX scout, HEX line, HEX siege, APC, plow, tank, truck, technical, SUV, steed, cart, mule, MLRS, IFV, MBT, an unmanned UGV, an unmanned leashed gunboat, a 60mm, drill, pump, and cutter. A rifle, MG, sniper, grenade, mortar, blade, or bow is gear. It fits a soldier and replaces the gun. The Lead starts with a rifle. A drop with no gun is issued one: a rifle for a soldier, a light mount for a hull or a follower. Androids keep their own gun. The first Cell is the Lead. Ferals and Rust fight the section and each other: shambler, doghead, pighead, goathead, crowhead, mutant, drone, walker, scoot, tract, coil, flake, roller, kite, slab, reach, mast, dray, rust plow, post, bloom, cluster, fog, ball, amalgam. Marsh bogs a hull. A hoverbike does not. A stash is a short hold that opens a find. Until a run has offered one, a stash may also turn up a named soldier. Extract keeps that soldier. Death removes a veteran, and redeploying one costs 80. Props are burnt trees, ruins, wire, wrecks, posts, and teeth. The field runs well past the LZ and the path. The camera sits wide. The field is dithered mud, burnt timber, and drab coats. Chrome is VGA grayscale. Color is rare: the title, the flare, dried blood, oxide, and a health bar that turns gold, then red.
+
+## Loop
+
+One move stick. Press and hold the left of the field to move. Hold Q or Space to group and E or Shift to spread. The pause menu lists the keys. Keys 1-9 fire the toolbar slots. Units auto-aim. Group closes the file in a glide, then boards one body per tap or hold-tick, alternating vehicles. The Lead takes the fastest hull. Spread disembarks one body before the file opens in a glide. The camera stays on the commander and eases well out as the file opens. Button labels show the next step. Bracket labels mark fire, boarding, finds, and loot. Red is a squad KIA or a lost part. An enemy down-label is gray and reads DOWN. An LZ arrow names the zone and shows the arm and craft counts. A gold column is the flare, and the craft descends onto it. An inbound upgrade falls in along its flare, then lands. Salvage, intel, and samples sit on the ground. A relic is a find, and it pays no credits. Pickup is a short reach. A body that has not joined holds at the drop and shoots. Edge marks also point at empty hulls and stragglers. A corpse is that figure laid flat. A part is that figure's head, limb, wheel, or turret. A plate names it while it is in view. A dim line drifts in the quiet. Hits land as muffled distant thuds. Hits tear off a limb or a wheel and throw it. A turret stays on the hull until the hull is badly hurt. Dead enemies stay on the ground. Shots, blasts, and breaks leave splatters, burns, and craters. A joined unit stays on foot and boards after a short delay when everyone else is mounted and a seat is free. Driving off leaves bodies behind. A Cell waits out a visible deploy. Aegis and the APC shoot on the move. A fitted grenade or mortar lobs. Feral bites land on contact. A goathead shoots. A crowhead lobs gnats. A Rust gun throws a straight bolt that can miss. Flakes come in a pack. A coil bites. Crewed hulls steer, accelerate, brake, and reverse. A moving hull rams harder and shoves. A hull at rest takes no collision damage, and a bump does not stall it. A second crewed hull rides beside the lead, clear of its skin. A crewed hull shoves an empty one aside. The stick stays with the Lead. A body still outside after the craft is down is left behind. Vehicles take hull damage. The plow and the tank break props. A Forge and an engineer dig cover down. A medic cannot patch an android. A Wisp opens the section's sight. A living relay brings the craft sooner. A hoverbike ignores mud. A light hull takes the hit, then skirts the cover. Gear auto-fits: plate, scope, drum, bipod, stim, plating, ram. Section tools: frag, mines, sentry, kit, radio, nitro, CAS, NVG, thermal, thermite, EMP, smoke, stun, FPV. An exo frame fits a soldier. A jetpack ignores mud. A filter ignores weather. A litter lets the bearer patch. An axe chews cover. An AT blast punches armor. A living operator jams Rust. A recondog carries night sight. A copter and a hunter-killer follow the Lead and do not board. The gunboat is an unmanned leashed assault copter. The UGV follows and shoots with nobody aboard. Thermite ignores armor. EMP bites only Rust. Smoke hides the squad from ranged hostiles. Weather snaps through clear, rain, snow, fog, and dust. It slows the file and cuts sight. Night cuts sight further. A flesh soldier on foot throws a beam along his shot, and that beam sees at day range. A hostile in the beam shoots back at day range. Androids carry no light. NVG and thermal shut the beams, and daylight shuts them. A living android carries thermal. CAS is a gunship pass along a crowd.
+
+## Layout
+
+```
+src/sim/world.ts        headless fixed step
+src/content/catalog.ts  card and hostile rows
+src/bot/policy.ts       same commands as the stick
+src/view/draw.ts        low-res pixel field
+src/view/audio.ts       muffled thuds, volume
+src/view/sprites.ts     procedural sprites
+src/meta/profile.ts     credits, finds, research
+src/main.ts             deck builder, HUD, touch
+```
+
+Checks: `npm test`. Ledger: `GATES.md`.
+
+## Locked
+
+- Seeded sim. No DOM under `src/sim`
+- Sides `player`, `feral`, `rust`
+- Empty deck fields one `cell_rifle`. Every deck card, including units and vehicles, waits in the airdrop queue. Only the first Cell is named Lead
+- The LZ marks at t≥48s, or once the deck is spent on the first field. A deeper field waits for its own mark. Staying in it arms the flare, then the craft. The squad loads one by one. A path marks at t≥36s. Standing on it for 8s opens a harder field. An inbound drop flares for 3s, then lands
+- The first unit is the squad center. The hull they board is the center
+- A new body is a catalog row plus a test

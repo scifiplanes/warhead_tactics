@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>WARHEAD TACTICS</title>
+    <style>
+      @font-face {
+        font-family: "VGA";
+        src: url("/fonts/PerfectDOS.ttf") format("truetype");
+      }
+      :root {
+        --paper: #000;
+        --card: #101010;
+        --ink: #c0c0c0;
+        --muted: #8a8a8a;
+        --rule: #6e6e6e;
+        --hud-bg: rgba(0, 0, 0, 0.78);
+        --hud-ink: #c0c0c0;
+        --hud-muted: #8a8a8a;
+        --hud-line: #6e6e6e;
+        --ok: #c0c0c0;
+        --danger: #a32020;
+        --gold: #e1c15a;
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: #000;
+        color: var(--hud-ink);
+        font-family: "VGA", ui-monospace, monospace;
+        overflow: hidden;
+        touch-action: none;
+      }
+      button, input { font: inherit; color: inherit; }
+      canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+      h1 { font-size: clamp(40px, 8vw, 72px); line-height: 0.9; margin: 0; font-weight: normal; letter-spacing: 1px; color: var(--gold); }
+      h2 { font-size: 18px; margin: 16px 0 8px; font-weight: normal; }
+      .screen { position: absolute; inset: 0; overflow: auto; background: var(--paper); color: var(--ink); }
+      .screen.hidden { display: none; }
+      .menu { max-width: 1080px; margin: 0 auto; padding: 22px 18px 110px; }
+      .lede { margin: 8px 0 0; max-width: 62ch; color: var(--muted); line-height: 1.45; }
+      #warn { color: var(--danger); min-height: 1.2em; }
+      #warn:empty { display: none; }
+      .builder { display: grid; grid-template-columns: 1fr 320px; gap: 22px; align-items: start; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+      .card {
+        position: relative;
+        display: grid;
+        grid-template-columns: 44px 1fr;
+        gap: 2px 10px;
+        align-items: center;
+        text-align: left;
+        background: var(--card);
+        border: 1px solid var(--rule);
+        border-left: 4px solid #3a3a3a;
+        padding: 8px;
+        cursor: pointer;
+      }
+      .card canvas { grid-row: span 2; width: 44px; height: 44px; image-rendering: pixelated; }
+      .card small { color: var(--muted); }
+      .card .n { position: absolute; top: 6px; right: 8px; color: var(--muted); }
+      .card.on { border-left-color: var(--gold); }
+      .card:disabled { opacity: 0.45; cursor: not-allowed; }
+      .deck {
+        position: sticky;
+        top: 12px;
+        background: var(--card);
+        border: 1px solid var(--rule);
+        padding: 14px;
+      }
+      .deck-head { display: flex; justify-content: space-between; }
+      #deckList { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+      #deckList button, #deckList .empty {
+        width: 100%;
+        min-height: 58px;
+        background: var(--paper);
+        border: 1px solid var(--rule);
+        border-top: 4px solid #3a3a3a;
+        cursor: pointer;
+      }
+      #deckList .empty { border-style: dashed; border-top-style: dashed; }
+      .row { display: flex; gap: 8px; margin-top: 10px; }
+      #finds { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+      #finds:empty { display: none; }
+      .ghost { flex: 1; background: transparent; border: 1px solid var(--rule); padding: 7px; cursor: pointer; }
+      .diff { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+      .diff label { flex: 1; text-align: center; border: 1px solid var(--rule); padding: 6px 4px; cursor: pointer; position: relative; }
+      .diff input { position: absolute; opacity: 0; inset: 0; }
+      .diff label:has(input:checked) { background: #c0c0c0; color: #000; }
+      #system label, #debug label { display: block; margin-top: 12px; }
+      #vol, #dither-alpha, #dither-cut, #dither-spread, #dither-levels { width: 100%; margin-top: 6px; accent-color: #c0c0c0; }
+      #dither-on, .dither-row button {
+        background: transparent;
+        border: 1px solid var(--rule);
+        color: var(--ink);
+        padding: 8px;
+        cursor: pointer;
+      }
+      #dither-on { display: block; width: 100%; margin-top: 12px; }
+      #dither-on.on, .dither-row button.on { background: #c0c0c0; color: #000; }
+      .dither-row { display: flex; gap: 6px; margin-top: 12px; align-items: center; flex-wrap: wrap; }
+      .dither-row span { width: 72px; flex: none; }
+      .dither-row button { flex: 1; min-width: 52px; }
+      #debug .panel { max-height: calc(100% - 8px); overflow: auto; }
+      #dither-swatch {
+        display: block;
+        width: 100%;
+        height: 96px;
+        margin-top: 12px;
+        background: #2c3820;
+        border: 1px solid var(--rule);
+        image-rendering: pixelated;
+      }
+      #mute { display: block; width: 100%; margin-top: 12px; background: transparent; border: 1px solid var(--rule); padding: 8px; cursor: pointer; }
+      .primary, #again, #resume, #system-pause, #debug-pause, #system-close, #debug-close {
+        display: block;
+        width: 100%;
+        margin-top: 12px;
+        background: #c0c0c0;
+        color: #000;
+        border: 0;
+        padding: 12px;
+        font-size: 18px;
+        cursor: pointer;
+      }
+      .seed { margin-top: 10px; color: var(--muted); }
+      .seed input { width: 80px; background: var(--paper); border: 1px solid var(--rule); color: var(--ink); padding: 4px; }
+      #hud { position: fixed; inset: 0; pointer-events: none; }
+      #hud.hidden { display: none; }
+      .pill {
+        background: var(--hud-bg);
+        border: 1px solid var(--hud-line);
+        padding: 4px 8px;
+        white-space: nowrap;
+      }
+      .dim { color: var(--hud-muted); }
+      .hud-tl { position: absolute; top: 8px; left: 8px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; max-width: 46%; }
+      .hud-tr { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; }
+      #roster {
+        display: grid;
+        grid-template-columns: auto 44px auto;
+        gap: 2px 6px;
+        align-items: center;
+        background: var(--hud-bg);
+        border: 1px solid var(--hud-line);
+        padding: 5px 7px;
+        font-size: 12px;
+      }
+      #roster .bar { height: 4px; background: rgba(255, 255, 255, 0.12); }
+      #roster .bar i { display: block; height: 100%; background: var(--ok); }
+      #toasts { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 4px; align-items: center; }
+      .toast { background: var(--hud-bg); border-left: 4px solid var(--hud-muted); padding: 4px 10px; }
+      .toast.danger { border-color: var(--danger); }
+      .hud-b { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+      #toolbar { display: grid; grid-template-columns: repeat(9, 40px); gap: 3px; pointer-events: auto; }
+      .tool {
+        position: relative;
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        background: var(--hud-bg);
+        border: 1px solid var(--hud-line);
+        color: var(--hud-ink);
+        cursor: pointer;
+        pointer-events: auto;
+      }
+      .tool canvas { width: 24px; height: 24px; margin: 8px auto 0; display: block; image-rendering: pixelated; }
+      .tool .k, #actions .k { position: absolute; top: 1px; left: 3px; font-size: 10px; font-style: normal; color: var(--hud-muted); }
+      #actions button { position: relative; }
+      .tool .c { position: absolute; right: 3px; bottom: 0; }
+      .tool.empty { opacity: 0.3; border-style: dashed; cursor: default; }
+      .tool.hot { background: #c0c0c0; color: #000; }
+      #stick {
+        position: absolute;
+        left: 18px;
+        bottom: 18px;
+        width: 112px;
+        height: 112px;
+        border: 1px solid #8a8a8a;
+        background: rgba(0, 0, 0, 0.45);
+        pointer-events: auto;
+        touch-action: none;
+        display: none;
+      }
+      #knob {
+        position: absolute;
+        left: 44px;
+        top: 44px;
+        width: 24px;
+        height: 24px;
+        background: #c0c0c0;
+      }
+      #actions { display: flex; gap: 8px; pointer-events: auto; }
+      #actions button, #pause, #bot {
+        pointer-events: auto;
+        cursor: pointer;
+        background: var(--hud-bg);
+        border: 1px solid var(--hud-line);
+        color: var(--hud-ink);
+        min-height: 40px;
+        min-width: 72px;
+      }
+      .overlay { position: absolute; inset: 0; background: rgba(10, 12, 7, 0.72); display: flex; align-items: center; justify-content: center; padding: 16px; }
+      .overlay.hidden { display: none; }
+      .panel { background: #000; color: var(--ink); border: 1px solid var(--rule); padding: 20px; max-width: 420px; width: 100%; }
+      .panel h2 { margin: 0 0 8px; font-size: 28px; color: var(--gold); }
+      .stats { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; margin: 0 0 8px; }
+      .stats dt { color: var(--muted); }
+      .stats dd { margin: 0; text-align: right; }
+      #toolbar[hidden] { display: none; }
+      body.touch #stick { display: block; }
+      body.touch #toolbar { position: fixed; right: 8px; top: 132px; grid-template-columns: repeat(3, 44px); z-index: 3; }
+      body.touch .tool { width: 44px; height: 44px; }
+      body.touch .hud-b { top: auto; left: auto; right: 10px; bottom: 16px; transform: none; align-items: flex-end; }
+      body.touch #actions { flex-direction: column; }
+      body.touch #actions button { width: 84px; height: 48px; }
+      body.touch #roster { display: none; }
+      body.touch .hud-tr { max-width: 52%; flex-wrap: wrap; justify-content: flex-end; }
+      @media (max-width: 860px) {
+        .builder { grid-template-columns: 1fr; }
+        .deck { position: static; }
+        #deploy { position: fixed; left: 12px; right: 12px; bottom: 12px; width: auto; z-index: 2; }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <section id="deck" class="screen">
+      <div class="menu">
+        <h1>WARHEAD TACTICS</h1>
+        <div class="builder">
+          <div id="cards"></div>
+          <aside class="deck">
+            <div class="deck-head"><h2>DECK</h2><span id="deckCount"></span></div>
+            <p class="lede" id="bank">CREDITS 0</p>
+            <div class="row">
+              <span>CAMPAIGN</span>
+              <button id="restart" class="ghost" type="button">RESTART</button>
+              <button id="system-open" class="ghost" type="button">SYSTEM</button>
+              <button id="debug-open" class="ghost" type="button">DEBUG</button>
+            </div>
+            <div id="finds"></div>
+            <ul id="deckList"></ul>
+            <div class="row">
+              <button id="clear" class="ghost" type="button">CLEAR</button>
+              <button id="fill" class="ghost" type="button">FILL</button>
+            </div>
+            <div class="diff">
+              <span>LOAD</span>
+              <label>LIGHT<input type="radio" name="diff" value="easy" /></label>
+              <label>STANDARD<input type="radio" name="diff" value="normal" checked /></label>
+              <label>HEAVY<input type="radio" name="diff" value="hard" /></label>
+            </div>
+            <label class="seed">SEED <input id="seed" type="number" value="7" /></label>
+            <button id="deploy" class="primary" type="button">DEPLOY</button>
+            <button id="deploy-bot" class="ghost" type="button">AUTOPLAY</button>
+            <p id="warn" class="lede"></p>
+          </aside>
+        </div>
+      </div>
+    </section>
+    <div id="hud" class="hidden">
+      <div class="hud-tl">
+        <div class="pill" id="timer"></div>
+        <div class="pill" id="field">CLEAR</div>
+        <div class="pill" id="dropIn"></div>
+        <div class="pill" id="bounty">PURGE 0/8</div>
+        <div id="roster"></div>
+      </div>
+      <div class="hud-tr">
+        <div class="pill" id="credits">CR 0</div>
+        <div class="pill" id="kills"></div>
+        <button id="pause" type="button">PAUSE</button>
+        <button id="bot" type="button">BOT OFF</button>
+      </div>
+      <div id="toasts"></div>
+      <div class="hud-b">
+        <div id="toolbar"></div>
+        <div id="actions">
+          <button id="group" type="button"><i class="k">Q</i><span id="group-label">TIGHT</span></button>
+          <button id="spread" type="button"><i class="k">E</i><span id="spread-label">WIDE</span></button>
+        </div>
+      </div>
+      <div id="stick"><div id="knob"></div></div>
+    </div>
+    <div id="paused" class="overlay hidden">
+      <div class="panel">
+        <h2>PAUSED</h2>
+        <dl class="stats">
+          <dt>MOVE</dt><dd>WASD</dd>
+          <dt>GROUP</dt><dd>Q</dd>
+          <dt>SPREAD</dt><dd>E</dd>
+          <dt>GEAR</dt><dd>1-9</dd>
+        </dl>
+        <button id="resume" type="button">RESUME</button>
+        <button id="system-pause" type="button">SYSTEM</button>
+        <button id="debug-pause" type="button">DEBUG</button>
+      </div>
+    </div>
+    <div id="system" class="overlay hidden">
+      <div class="panel">
+        <h2>SYSTEM</h2>
+        <label>VOLUME <input id="vol" type="range" min="0" max="100" value="55" /></label>
+        <button id="mute" type="button">MUTE</button>
+        <button id="system-close" type="button">CLOSE</button>
+      </div>
+    </div>
+    <div id="debug" class="overlay hidden">
+      <div class="panel">
+        <h2>DEBUG</h2>
+        <canvas id="dither-swatch" width="280" height="96"></canvas>
+        <button id="dither-on" class="on" type="button">DITHER ON</button>
+        <label>LEVELS <b id="dither-levels-n">32</b><input id="dither-levels" type="range" min="0" max="256" value="32" /></label>
+        <label>SPREAD <b id="dither-spread-n">100</b><input id="dither-spread" type="range" min="0" max="100" value="100" /></label>
+        <div class="dither-row" id="dither-scale"><span>SCALE</span></div>
+        <div class="dither-row" id="dither-size"><span>SIZE</span></div>
+        <div class="dither-row" id="dither-pattern"><span>PATTERN</span></div>
+        <label>STRENGTH <b id="dither-alpha-n">31</b><input id="dither-alpha" type="range" min="0" max="100" value="31" /></label>
+        <label>CUT <b id="dither-cut-n">4</b><input id="dither-cut" type="range" min="0" max="16" value="4" /></label>
+        <div class="dither-row" id="dither-ink"><span>INK</span></div>
+        <div class="dither-row" id="dither-blend"><span>BLEND</span></div>
+        <div class="dither-row" id="dither-layer"><span>LAYER</span></div>
+        <button id="debug-close" type="button">CLOSE</button>
+      </div>
+    </div>
+    <section id="end" class="overlay hidden">
+      <div class="panel">
+        <h2 id="end-title">EXTRACT</h2>
+        <dl class="stats" id="end-stats"></dl>
+        <p id="end-line"></p>
+        <button id="again" type="button">DECK</button>
+      </div>
+    </section>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

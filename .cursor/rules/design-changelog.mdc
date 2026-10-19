@@ -1,0 +1,39 @@
+---
+description: Keep design.md and changelog.md short enough for the next agent
+alwaysApply: true
+---
+
+# Design + changelog
+
+Current truth and shipped deltas. Next-agent catch-up, not a history book.
+
+## Files
+
+- `docs/design.md` — present tense, what the game IS
+- `docs/changelog.md` — newest first
+- `docs/changelog-archive.md` — overflow only; do not load it unless asked
+
+## When
+
+After a batch that changes rules, public behaviour, controls, or named checks: edit design in place, then prepend one changelog bullet.
+
+Skip typos, comments, and unshipped experiments.
+
+## Caps
+
+- `docs/design.md` body ≤ ~50 lines. Over that, compress, or one line plus `docs/design/*.md`.
+- `docs/changelog.md` ≤ ~40 lines. Move older bullets to the archive.
+
+## Shape
+
+Design sections: `Product`, `World`, `Loop`, `Layout`, `Locked`. Exact paths. No TODOs, no transcripts.
+
+Changelog: `- **YYYY-MM-DD Tag:** why. Path if useful.`
+
+Tags: `Feat` `Fix` `Check` `Design`. Why, not a diff.
+
+## Failures
+
+- Changelog describes a rule that design still omits
+- Design narrates old builds
+- Pasting test logs into either file
