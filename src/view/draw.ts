@@ -867,16 +867,16 @@ function column(ctx: CanvasRenderingContext2D, x: number, y: number, h: number, 
 }
 
 function paintCraft(ctx: CanvasRenderingContext2D, x: number, y: number, w: World) {
-  const heli = scenery("heli")
-  if (!heli) return
+  const vtol = scenery("vtol", Math.floor(w.t * 20) % 2)
+  if (!vtol) return
   const k = w.craftOn ? 1 : Math.min(1, w.flareHold / CRAFT_WAIT)
-  const dw = heli.width * 3
-  const dh = heli.height * 3
+  const dw = vtol.width * 3
+  const dh = vtol.height * 3
   const left = x - dw / 2
-  const top = y - (1 - k) * 200 - dh - 12
-  ctx.drawImage(heli, left, top, dw, dh)
+  const top = y - (1 - k) * 200 - dh + 6
+  ctx.drawImage(vtol, left, top, dw, dh)
   ctx.fillStyle = "#e1c15a"
-  ctx.fillRect(left + dw - 14, top + 10, 6, 6)
+  ctx.fillRect(left + dw / 2 - 3, top + 12, 6, 6)
 }
 
 function plate(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, col = "#e1c15a") {

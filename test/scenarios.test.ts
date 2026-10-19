@@ -529,8 +529,10 @@ test("a hull or a sentry with no unit loses, and a loaded hull still extracts", 
   spawnBody(wiped, { kind: "jeep", x: 2, y: 0, inSection: true })
   spawnBody(wiped, { kind: "sentry_gun", x: -2, y: 0, inSection: true })
   wiped.bodies.find((b) => b.id === wiped.commander)!.alive = false
+  wiped.credits = 80
   go(wiped, IDLE, 0.1)
   expect(wiped.phase).toBe("lose")
+  expect(wiped.credits).toBe(0)
 
   const followed = quiet()
   spawnBody(followed, { kind: "k9", x: 1, y: 0, inSection: true })
@@ -548,8 +550,58 @@ test("a hull or a sentry with no unit loses, and a loaded hull still extracts", 
   cell.x = 0
   cell.y = 0
   spawnBody(w, { kind: "jeep", x: 1, y: 0, inSection: true })
+  w.credits = 80
   go(w, IDLE, LOAD_STEP * 2 + 0.4)
   expect(w.phase).toBe("win")
+  expect(w.credits).toBe(120)
+})
+
+test("extracted units, gear, and vehicles recoup their deployment cost", () => {
+  const deck = ["jeep", "plate", "frag"]
+  const wear = { jeep: 1 }
+  const w = makeRun(1, deck, { wear })
+  expect(w.deckPay.reduce((sum, n) => sum + n, 0)).toBe(deployCost(deck, wear))
+  w.nextHorde = 1e9
+  w.nextField = 1e9
+  w.stashAt = 1e9
+  w.pathAt = 1e9
+  w.flareAt = 1e9
+  w.autoBoard = false
+  for (let n = 0; n < deck.length; n++) {
+    w.nextDrop = 0
+    go(w, IDLE, 0.05)
+    const inbound = w.inbound[0]
+    inbound.x = 0
+    inbound.y = 0
+    inbound.t = 0
+    go(w, IDLE, 0.2)
+  }
+  const jeep = w.bodies.find((b) => b.kind === "jeep")!
+  const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
+  expect(jeep.cost).toBe(140)
+  expect(lead.gearPay.plate).toBe(20)
+  expect(w.kitPay).toBe(25)
+  w.autoBoard = false
+  lead.boarded = null
+  w.lzOn = true
+  w.flareOn = true
+  w.craftOn = true
+  w.flareX = 0
+  w.flareY = 0
+  lead.x = 0
+  lead.y = 0
+  jeep.x = 30
+  jeep.y = 0
+  w.ax = 0
+  w.ay = 0
+  go(w, IDLE, LOAD_STEP + 0.2)
+  expect(lead.out).toBe(true)
+  expect(jeep.out).toBe(false)
+  expect(w.phase).toBe("run")
+  go(w, IDLE, 6.2)
+  expect(w.phase).toBe("win")
+  expect(jeep.inSection).toBe(false)
+  expect(w.credits).toBe(40 + 20 + 25)
 })
 
 test("the first unit is the squad center", () => {
@@ -670,7 +722,7 @@ test("kills and loot pay credits, and a find stays locked until research", () =>
   expect(foe.alive).toBe(false)
   expect(w.credits).toBeGreaterThanOrEqual(4)
   expect(w.tags.some((t) => t.text === "DOWN")).toBe(true)
-  w.drops.push({ id: 900, cardId: "intel", x: 0, y: 0, bodyId: -1, kind: "loot", taken: false })
+  w.drops.push({ id: 900, cardId: "intel", x: 0, y: 0, bodyId: -1, kind: "loot", taken: false, cost: 0 })
   const before = w.credits
   go(w, IDLE, 0.2)
   expect(w.credits).toBe(before + 18)
@@ -1098,7 +1150,7 @@ test("thermite ignores armor, EMP bites only Rust, smoke hides the squad, a reli
   const find = quiet()
   const credits = find.credits
   find.hidden = ["mg"]
-  find.drops.push({ id: 50, cardId: "relic", x: 0.4, y: 0, bodyId: -1, kind: "loot", taken: false })
+  find.drops.push({ id: 50, cardId: "relic", x: 0.4, y: 0, bodyId: -1, kind: "loot", taken: false, cost: 0 })
   go(find, IDLE, 0.3)
   expect(find.found).toContain("mg")
   expect(find.credits).toBe(credits)
@@ -1243,12 +1295,12 @@ test("the rest of the roster is gear, hulls, and rust", () => {
 
   const armed = quiet()
   const lead = armed.bodies.find((b) => b.kind === "cell_rifle")!
-  armed.drops.push({ id: 80, cardId: "axe", x: 0.2, y: 0, bodyId: 0, kind: "gear", taken: false })
+  armed.drops.push({ id: 80, cardId: "axe", x: 0.2, y: 0, bodyId: 0, kind: "gear", taken: false, cost: 0 })
   go(armed, IDLE, 0.3)
   expect(lead.gears).toContain("axe")
   expect(lead.gears.includes("rifle")).toBe(false)
   expect(lead.dig).toBe(2)
-  armed.drops.push({ id: 81, cardId: "litter", x: 0.2, y: 0, bodyId: 0, kind: "gear", taken: false })
+  armed.drops.push({ id: 81, cardId: "litter", x: 0.2, y: 0, bodyId: 0, kind: "gear", taken: false, cost: 0 })
   go(armed, IDLE, 0.3)
   expect(lead.heal).toBe(6)
 
@@ -1256,7 +1308,7 @@ test("the rest of the roster is gear, hulls, and rust", () => {
   pack.props = []
   const cell = pack.bodies.find((b) => b.kind === "cell_rifle")!
   const pace = cell.speed
-  pack.drops.push({ id: 82, cardId: "jetpack", x: 0.2, y: 0, bodyId: 0, kind: "gear", taken: false })
+  pack.drops.push({ id: 82, cardId: "jetpack", x: 0.2, y: 0, bodyId: 0, kind: "gear", taken: false, cost: 0 })
   go(pack, IDLE, 0.3)
   expect(cell.speed).toBeGreaterThan(pace)
   pack.weather = "snow"
@@ -1267,7 +1319,7 @@ test("the rest of the roster is gear, hulls, and rust", () => {
 
   const veil = quiet()
   veil.props = []
-  veil.drops.push({ id: 83, cardId: "filter", x: 0.2, y: 0, bodyId: 0, kind: "gear", taken: false })
+  veil.drops.push({ id: 83, cardId: "filter", x: 0.2, y: 0, bodyId: 0, kind: "gear", taken: false, cost: 0 })
   go(veil, IDLE, 0.3)
   veil.weather = "snow"
   const f0 = veil.ax

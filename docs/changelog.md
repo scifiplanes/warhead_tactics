@@ -2,6 +2,9 @@
 
 Newest first. Older → `docs/changelog-archive.md`.
 
+- **2026-10-19 Feat:** a unit, vehicle, or gear that extracts pays back its deployment cost. `src/sim/world.ts`
+- **2026-10-19 Design:** a wipe banks none of the run's credits. Extract banks the haul and pays 40 more. `src/sim/world.ts`
+- **2026-10-19 Design:** extraction comes in on a large brick-shaped cargo VTOL with ducted fans, not a helicopter. `src/view/sprites.ts`
 - **2026-10-19 Feat:** opening the deck rolls a seed, so the next field is not the last one. `src/main.ts`
 - **2026-10-19 Fix:** a section with no living unit loses. A hull or a sentry left behind does not keep the run. `src/sim/world.ts`
 - **2026-10-19 Fix:** a field find fades in on the way to its spot. The drone is only for cards from the deck. `src/sim/world.ts`
@@ -34,8 +37,3 @@ Newest first. Older → `docs/changelog-archive.md`.
 - **2026-10-18 Feat:** goathead, crowhead, Forge, Wisp, engineer, relay, light hulls, HEX scout, Tract, Coil, Flake, thermite, EMP, smoke, and relic finds. `src/content/catalog.ts`
 - **2026-10-18 Feat:** weather, night, NVG, thermal, and a CAS gunship pass. `src/sim/world.ts`
 - **2026-10-18 Fix:** salvage, intel, and samples are ground pickups. Upgrade drops stay crates. `src/sim/world.ts`
-- **2026-10-18 Fix:** pickup reach is shorter. `src/sim/world.ts`
-- **2026-10-18 Fix:** the Lead boards the fastest hull. `src/sim/world.ts`
-- **2026-10-18 Fix:** a second crewed hull rides beside the lead instead of backing into it. `src/sim/world.ts`
-- **2026-10-18 Fix:** keys 1-9 fire the matching toolbar slot, and a dead press says why. `src/main.ts`
-- **2026-10-18 Feat:** pickup reaches farther, an upgrade falls in on its flare, a bump does not stall a hull, and holding a path opens a harder field. `src/sim/world.ts`

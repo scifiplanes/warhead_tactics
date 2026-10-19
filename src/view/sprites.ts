@@ -337,12 +337,22 @@ function gunship() {
   return b
 }
 
-function heli() {
-  const b = cv(32, 14)
+function vtol(frame: number) {
+  const b = cv(48, 24)
   const g = b.getContext("2d")!
-  rects(g, "#2a2824", [[0, 6, 15, 2], [0, 3, 2, 8]])
-  rects(g, "#3a3834", [[12, 2, 17, 10], [14, 1, 13, 12], [29, 4, 2, 6]])
-  rects(g, "#6a6860", [[26, 4, 3, 6]])
+  rects(g, "#2a2824", [[9, 19, 2, 3], [37, 19, 2, 3], [6, 22, 8, 1], [34, 22, 8, 1]])
+  rects(g, "#4a4844", [[4, 6, 40, 13]])
+  rects(g, "#6a6860", [[4, 6, 40, 1]])
+  rects(g, "#2a2824", [[4, 18, 40, 1], [4, 6, 1, 13], [43, 6, 1, 13]])
+  rects(g, "#3a3834", [[15, 7, 1, 11], [24, 7, 1, 11], [33, 7, 1, 11], [5, 13, 6, 5], [12, 9, 2, 2], [26, 9, 2, 2]])
+  rects(g, "#1a1a18", [[37, 8, 6, 3]])
+  rects(g, "#6a6860", [[38, 8, 2, 1]])
+  for (const px of [0, 36]) {
+    rects(g, "#3a3834", [[px, 1, 12, 5], [px + 4, 6, 4, 2]])
+    rects(g, "#5a5854", [[px, 1, 12, 1]])
+    rects(g, frame ? "#8a8680" : "#5a5854", [[px + 1, 3, 10, 1]])
+    rects(g, "#2a2824", [[px + 1, 5, 10, 1]])
+  }
   return b
 }
 
@@ -408,7 +418,8 @@ function boot() {
   rects(rubble.getContext("2d")!, "#3a342c", [[1, 3, 3, 1], [5, 2, 3, 2], [3, 3, 2, 1]])
   props.set("rubble:0", rubble)
   props.set("crate:0", paint(CRATE, { C: "#3a3428", c: "#5a5044" }))
-  props.set("heli:0", heli())
+  props.set("vtol:0", vtol(0))
+  props.set("vtol:1", vtol(1))
   props.set("mine:0", paint(GEAR.mines[0], GEAR.mines[1]))
   vehicles.set("jeep", jeep())
   vehicles.set("apc", apc())

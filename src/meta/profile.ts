@@ -1,4 +1,4 @@
-import { HERO_PRICE, STARTER, isHero, priceOf, researchCost, type Hero } from "../content/catalog"
+import { STARTER, isHero, paidFor, priceOf, researchCost, type Hero } from "../content/catalog"
 
 const KEY = "warhead-tactics-profile"
 
@@ -96,10 +96,7 @@ export function save(p: Profile) {
 }
 
 export function cardCost(id: string, wear = 0, copy = 0) {
-  if (isHero(id)) return HERO_PRICE
-  const base = priceOf(id)
-  if (!base) return 0
-  return base * (1 + Math.max(0, wear) + Math.max(0, copy))
+  return paidFor(id, wear, copy)
 }
 
 export function deployCost(deck: string[], wear: Record<string, number> = {}) {

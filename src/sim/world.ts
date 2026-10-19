@@ -5,6 +5,7 @@ import {
   HOSTILES,
   STARTER,
   card,
+  paidFor,
   rollHero,
   type Hero,
   type Side,
@@ -55,6 +56,9 @@ export type Body = {
   boardVeh: number | null
   boardDelay: number
   gears: string[]
+  gearPay: Record<string, number>
+  cost: number
+  out: boolean
   alive: boolean
   fired: number
   moved: boolean
@@ -131,9 +135,10 @@ export type Drop = {
   bodyId: number
   kind: "unit" | "vehicle" | "gear" | "loot"
   taken: boolean
+  cost: number
 }
 
-export type Inbound = { x: number; y: number; t: number; cardId: string; loot: boolean }
+export type Inbound = { x: number; y: number; t: number; cardId: string; loot: boolean; cost: number }
 export type Reveal = { x: number; y: number; tx: number; ty: number; t: number; dur: number; bodyId: number; dropId: number }
 
 export type World = {
@@ -196,6 +201,8 @@ export type World = {
   spreadHeld: number
   autoBoardT: number
   deckQueue: string[]
+  deckPay: number[]
+  kitPay: number
   hash: Map<string, Body[]>
   shots: Shot[]
   bolts: Bolt[]
@@ -238,7 +245,7 @@ export type World = {
 export type Tag = { x: number; y: number; text: string; kind: string; life: number; slot: number }
 
 export type Diff = "easy" | "normal" | "hard"
-export type RunOpts = { diff?: Diff; hidden?: string[]; known?: string[]; heroes?: Hero[] }
+export type RunOpts = { diff?: Diff; hidden?: string[]; known?: string[]; heroes?: Hero[]; wear?: Record<string, number> }
 
 export type Spawn = {
   kind: string
@@ -414,10 +421,17 @@ export function makeRun(seed: number, deck: string[], opts: RunOpts = {}): World
   w.diffHp = opts.diff === "easy" ? 0.75 : opts.diff === "hard" ? 1.35 : 1
   rollField(w)
   const ordered = deck.slice(0, DECK_CAP)
-  const queue = ordered.slice()
-  shuffle(w.rng, queue)
-  w.deck = queue.slice()
-  w.deckQueue = queue.slice()
+  const seen: Record<string, number> = {}
+  const wear = opts.wear ?? {}
+  const paired = ordered.map((id) => {
+    const n = seen[id] ?? 0
+    seen[id] = n + 1
+    return { id, cost: paidFor(id, wear[id] ?? 0, n) }
+  })
+  shuffle(w.rng, paired)
+  w.deck = paired.map((row) => row.id)
+  w.deckQueue = w.deck.slice()
+  w.deckPay = paired.map((row) => row.cost)
   w.found = (opts.known ?? []).slice()
   w.hidden = (opts.hidden ?? []).filter((id) => !w.found.includes(id))
   w.heroes = {}
@@ -504,6 +518,9 @@ export function spawnBody(w: World, spec: Spawn): Body {
     boardVeh: null,
     boardDelay: 0,
     gears: [],
+    gearPay: {},
+    cost: 0,
+    out: false,
     alive: true,
     fired: 0,
     moved: false,
@@ -546,7 +563,7 @@ export function spawnBody(w: World, spec: Spawn): Body {
   return b
 }
 
-export function placeDrop(w: World, cardId: string, x: number, y: number): Drop {
+export function placeDrop(w: World, cardId: string, x: number, y: number, cost = 0): Drop {
   const hero = w.heroes[cardId]
   if (hero) {
     const body = spawnBody(w, { kind: hero.chassis, x, y, inSection: false })
@@ -555,6 +572,7 @@ export function placeDrop(w: World, cardId: string, x: number, y: number): Drop 
     grantGift(body, hero.gift)
     body.name = hero.name
     body.heroId = hero.id
+    body.cost = cost
     const drop: Drop = {
       id: w.nextId++,
       cardId,
@@ -563,6 +581,7 @@ export function placeDrop(w: World, cardId: string, x: number, y: number): Drop 
       bodyId: body.id,
       kind: "unit",
       taken: false,
+      cost,
     }
     w.drops.push(drop)
     return drop
@@ -576,10 +595,12 @@ export function placeDrop(w: World, cardId: string, x: number, y: number): Drop 
     bodyId: 0,
     kind: c.kind,
     taken: false,
+    cost,
   }
   if (c.kind === "unit" || c.kind === "vehicle") {
     const body = spawnBody(w, { kind: cardId, x, y, inSection: false })
     arm(body)
+    body.cost = cost
     drop.bodyId = body.id
   }
   w.drops.push(drop)
@@ -647,6 +668,8 @@ function blank(seed: number): World {
     spreadHeld: 0,
     autoBoardT: 0,
     deckQueue: [],
+    deckPay: [],
+    kitPay: 0,
     hash: new Map(),
     shots: [],
     bolts: [],
@@ -1190,8 +1213,8 @@ function reveals(w: World, dt: number) {
   w.reveals = live
 }
 
-function signal(w: World, cardId: string, x: number, y: number, loot = false) {
-  w.inbound.push({ x, y, t: DROP_WARN, cardId, loot })
+function signal(w: World, cardId: string, x: number, y: number, loot = false, cost = 0) {
+  w.inbound.push({ x, y, t: DROP_WARN, cardId, loot, cost })
 }
 
 function landInbound(w: World, dt: number) {
@@ -1200,8 +1223,8 @@ function landInbound(w: World, dt: number) {
   w.inbound = w.inbound.filter((f) => f.t > 0)
   for (const f of due) {
     if (f.loot) {
-      w.drops.push({ id: w.nextId++, cardId: f.cardId, x: f.x, y: f.y, bodyId: -1, kind: "loot", taken: false })
-    } else placeDrop(w, f.cardId, f.x, f.y)
+      w.drops.push({ id: w.nextId++, cardId: f.cardId, x: f.x, y: f.y, bodyId: -1, kind: "loot", taken: false, cost: 0 })
+    } else placeDrop(w, f.cardId, f.x, f.y, f.cost)
     burst(w, f.x, f.y, "dust")
   }
 }
@@ -1214,6 +1237,7 @@ function drops(w: World, dt: number) {
   if (w.nextDrop > 0) return
   w.nextDrop = DROP_EVERY
   const id = w.deckQueue.shift()
+  const cost = w.deckPay.shift() ?? 0
   if (!id) return
   const held = [
     ...w.inbound.filter((f) => !f.loot),
@@ -1232,7 +1256,7 @@ function drops(w: World, dt: number) {
     if (held.some((s) => Math.hypot(s.x - x, s.y - y) < 22)) continue
     break
   }
-  signal(w, id, x, y)
+  signal(w, id, x, y, false, cost)
 }
 
 function field(w: World, dt: number) {
@@ -1255,7 +1279,7 @@ function field(w: World, dt: number) {
     return
   }
   const loot = (["salvage", "intel", "sample"] as const)[(w.rng() * 3) | 0]
-  w.drops.push({ id: w.nextId++, cardId: loot, x, y, bodyId: -1, kind: "loot", taken: false })
+  w.drops.push({ id: w.nextId++, cardId: loot, x, y, bodyId: -1, kind: "loot", taken: false, cost: 0 })
 }
 
 const LOOT_CR: Record<string, number> = { salvage: 12, intel: 18, sample: 15 }
@@ -1284,7 +1308,7 @@ function pickup(w: World) {
     }
     if (d.kind === "gear") {
       if (!touch(w, d.x, d.y)) continue
-      if (!equip(w, d.cardId)) continue
+      if (!equip(w, d.cardId, d.cost)) continue
       d.taken = true
       w.dropsTaken++
       noteFind(w, d)
@@ -1368,15 +1392,17 @@ function soldier(b: Body) {
   return b.alive && b.inSection && b.side === "player" && !b.vehicle && !b.android && !b.follow
 }
 
-function fitGun(b: Body, id: string) {
+function fitGun(b: Body, id: string, cost = 0) {
   const c = card(id)
   const g = c.gun
   if (!g) return
   const prev = b.gears.find((have) => card(have).gun)
   const old = prev ? card(prev) : undefined
   if (old?.digAdd) b.dig = Math.max(0, b.dig - old.digAdd)
+  for (const have of b.gears) if (card(have).gun) delete b.gearPay[have]
   b.gears = b.gears.filter((have) => !card(have).gun)
   b.gears.push(id)
+  if (cost > 0) b.gearPay[id] = cost
   b.range = g.range
   b.damage = g.damage
   b.cooldown = g.cooldown
@@ -1396,13 +1422,13 @@ function fitGun(b: Body, id: string) {
   }
 }
 
-function equip(w: World, id: string): boolean {
+function equip(w: World, id: string, cost = 0): boolean {
   const c = card(id)
   if (c.gun) {
     const bare = w.bodies.find((b) => soldier(b) && !b.gears.some((g) => card(g).gun))
     const target = bare ?? w.bodies.find((b) => soldier(b))
     if (!target) return false
-    fitGun(target, id)
+    fitGun(target, id, cost)
     toast(w, `${c.name} fitted`, "gear")
     return true
   }
@@ -1410,6 +1436,7 @@ function equip(w: World, id: string): boolean {
   if (c.fits && c.fits !== "section") {
     if (!target) return false
     target.gears.push(id)
+    if (cost > 0) target.gearPay[id] = cost
     if (c.armorAdd) target.armor = Math.min(0.75, target.armor + c.armorAdd)
     if (c.rangeMul) target.range *= c.rangeMul
     if (c.rateMul) target.cooldown *= c.rateMul
@@ -1437,7 +1464,9 @@ function equip(w: World, id: string): boolean {
     }
     toast(w, `${c.name} ready`, "gear")
   } else if (target) toast(w, `${c.name} fitted`, "gear")
-  return Boolean((c.fits !== "section" && target) || c.ability)
+  const ok = Boolean((c.fits !== "section" && target) || c.ability)
+  if (ok && c.fits === "section" && cost > 0) w.kitPay += cost
+  return ok
 }
 
 function horde(w: World, dt: number) {
@@ -1627,10 +1656,21 @@ function squadUnit(b: Body) {
   return b.alive && b.inSection && b.side === "player" && !b.vehicle && b.kind !== "sentry_gun"
 }
 
+function hauled(w: World) {
+  let n = w.embarked ? w.kitPay : 0
+  for (const b of w.bodies) {
+    if (!b.out) continue
+    n += b.cost
+    for (const id of b.gears) n += b.gearPay[id] ?? 0
+  }
+  return n
+}
+
 function liftOut(w: World, b: Body) {
   if (!b.alive) return
   for (const u of w.bodies) if (u.alive && u.boarded === b.id) liftOut(w, u)
   if (!b.vehicle && b.kind !== "sentry_gun") w.embarked = true
+  b.out = true
   b.alive = false
   b.inSection = false
   b.boarded = null
@@ -1695,8 +1735,9 @@ function flare(w: World, _cmd: Commands, dt: number) {
       w.phase = "win"
       if (!w.paidWin) {
         w.paidWin = true
-        w.credits += 40
-        toast(w, "EXTRACT +40 CR", "unit")
+        const back = hauled(w)
+        w.credits += 40 + back
+        toast(w, `EXTRACT +${40 + back} CR`, "unit")
       }
     }
   }
@@ -1910,6 +1951,7 @@ function ending(w: World) {
   if (w.bodies.some(squadUnit)) return
   if (w.craftOn && w.embarked) return
   w.phase = "lose"
+  w.credits = 0
 }
 
 function pickFit(w: World, c: ReturnType<typeof card>): Body | null {
@@ -2098,6 +2140,7 @@ function stash(w: World, dt: number) {
     bodyId: -1,
     kind: "loot",
     taken: false,
+    cost: 0,
   })
   toast(w, "Stash open", "loot")
 }
@@ -2702,7 +2745,7 @@ function nearest(
   return best
 }
 
-function shuffle(rng: () => number, arr: string[]) {
+function shuffle<T>(rng: () => number, arr: T[]) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1))
     const tmp = arr[i]

@@ -2,6 +2,11 @@
 
 Moved from `docs/changelog.md` when that file outgrows its cap.
 
+- **2026-10-18 Fix:** pickup reach is shorter. `src/sim/world.ts`
+- **2026-10-18 Fix:** the Lead boards the fastest hull. `src/sim/world.ts`
+- **2026-10-18 Fix:** a second crewed hull rides beside the lead instead of backing into it. `src/sim/world.ts`
+- **2026-10-18 Fix:** keys 1-9 fire the matching toolbar slot, and a dead press says why. `src/main.ts`
+- **2026-10-18 Feat:** pickup reaches farther, an upgrade falls in on its flare, a bump does not stall a hull, and holding a path opens a harder field. `src/sim/world.ts`
 - **2026-10-18 Feat:** the pause menu lists the keys. Group shows Q and spread shows E. `index.html`
 - **2026-10-18 Fix:** red labels are squad losses. An enemy reads DOWN, in gray. `src/view/draw.ts`
 - **2026-10-18 Fix:** a hull sitting on a ruin or a body takes no collision damage. `src/sim/world.ts`

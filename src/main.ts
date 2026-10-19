@@ -447,7 +447,8 @@ function warn(text: string) {
 }
 
 function start(asBot: boolean) {
-  const cost = deployCost(deck, profile.wear)
+  const wear = { ...profile.wear }
+  const cost = deployCost(deck, wear)
   if (cost > profile.credits) {
     warn(`SHORT ${cost - profile.credits} CR`)
     return
@@ -462,7 +463,7 @@ function start(asBot: boolean) {
   botBtn.textContent = bot ? "BOT ON" : "BOT OFF"
   const seed = Number(seedEl.value) || 1
   const hidden = CARDS.filter((c) => c.deck && !profile.found.includes(c.id)).map((c) => c.id)
-  world = makeRun(seed, deck, { diff: diff(), hidden, known: profile.known, heroes: profile.heroes })
+  world = makeRun(seed, deck, { diff: diff(), hidden, known: profile.known, heroes: profile.heroes, wear })
   parts.length = 0
   toolSig = ""
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur()

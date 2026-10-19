@@ -1193,6 +1193,13 @@ export function priceOf(id: string) {
   return PRICE[id] ?? 0
 }
 
+export function paidFor(id: string, wear = 0, copy = 0) {
+  if (isHero(id)) return HERO_PRICE
+  const base = priceOf(id)
+  if (!base) return 0
+  return base * (1 + Math.max(0, wear) + Math.max(0, copy))
+}
+
 export function researchCost(id: string) {
   return priceOf(id) * 20
 }
