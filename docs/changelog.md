@@ -2,6 +2,13 @@
 
 Newest first. Older → `docs/changelog-archive.md`.
 
+- **2026-10-19 Feat:** opening the deck rolls a seed, so the next field is not the last one. `src/main.ts`
+- **2026-10-19 Fix:** a section with no living unit loses. A hull or a sentry left behind does not keep the run. `src/sim/world.ts`
+- **2026-10-19 Fix:** a field find fades in on the way to its spot. The drone is only for cards from the deck. `src/sim/world.ts`
+- **2026-10-19 Fix:** airdrops fall a walk apart, and the next one waits longer. `src/sim/world.ts`
+- **2026-10-19 Feat:** an octacopter cargo drone carries each airdrop in. A soldier or a hull hangs on its cables and is set down directly, and the empty drone climbs away. Gear still comes in a crate. `src/view/draw.ts`
+- **2026-10-19 Feat:** each field rolls a ground, a bearing, a pressure, and a sky pair. A deeper field rolls them again. If the Lead is down, the stick passes to a soldier. `src/sim/world.ts`
+- **2026-10-19 Fix:** the weather and night chip is gone. Rain and night still play on the field. `index.html`
 - **2026-10-19 Fix:** the field runs well past the LZ, so the edge is not sitting on the objective. Hordes still walk in from just off camera. `src/sim/world.ts`
 - **2026-10-19 Design:** the field opens on the tuned dither: 32 levels, scale 8, strength 31, cut 4, Bayer mud laid over the picture. `src/view/draw.ts`
 - **2026-10-19 Fix:** the field dither is drawn at screen resolution, so the smallest scale is a couple of pixels instead of a blown-up game pixel. `src/view/draw.ts`
@@ -32,10 +39,3 @@ Newest first. Older → `docs/changelog-archive.md`.
 - **2026-10-18 Fix:** a second crewed hull rides beside the lead instead of backing into it. `src/sim/world.ts`
 - **2026-10-18 Fix:** keys 1-9 fire the matching toolbar slot, and a dead press says why. `src/main.ts`
 - **2026-10-18 Feat:** pickup reaches farther, an upgrade falls in on its flare, a bump does not stall a hull, and holding a path opens a harder field. `src/sim/world.ts`
-- **2026-10-18 Feat:** the pause menu lists the keys. Group shows Q and spread shows E. `index.html`
-- **2026-10-18 Fix:** red labels are squad losses. An enemy reads DOWN, in gray. `src/view/draw.ts`
-- **2026-10-18 Fix:** a hull sitting on a ruin or a body takes no collision damage. `src/sim/world.ts`
-- **2026-10-18 Fix:** only the first Cell is the Lead. The LZ arrow, its timers, the flare column, and the craft read on the field. An inbound drop lights its own flare. `src/view/draw.ts`
-- **2026-10-18 Fix:** the starter soldier is named Lead. `src/content/catalog.ts`
-- **2026-10-18 Fix:** health bars stay gray, turn gold, then red as a body is hurt. `src/view/draw.ts`
-- **2026-10-18 Feat:** muffled distant thuds, with volume and mute in the system menu. `src/view/audio.ts`

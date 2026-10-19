@@ -74,14 +74,14 @@ export function policy(w: World): Commands {
     let ty = 0
     for (const mark of [...w.drops, ...w.inbound]) {
       if (w.pathOn && Math.hypot(mark.x - w.pathX, mark.y - w.pathY) <= FLARE_R) continue
+      const loot = "loot" in mark ? mark.loot : mark.kind === "loot"
       const d = Math.hypot(mark.x - sx, mark.y - sy)
-      if (d < best) {
-        best = d
-        tx = mark.x
-        ty = mark.y
-      }
+      if (d > (loot ? 18 : 56) || d >= best) continue
+      best = d
+      tx = mark.x
+      ty = mark.y
     }
-    if (best < 18 && best > 1) {
+    if (best < 56 && best > 1) {
       cmd.moveX = (tx - sx) / best
       cmd.moveY = (ty - sy) / best
     }
@@ -103,7 +103,7 @@ export function policy(w: World): Commands {
 }
 
 function see(w: World, cmd: Commands) {
-  if (daylight(w.t) >= 0.45 || w.vision !== "off" || cmd.ability !== null) return
+  if (daylight(w.t + w.dayOff) >= 0.45 || w.vision !== "off" || cmd.ability !== null) return
   const nvg = w.toolbar.findIndex((t) => t.id === "nvg")
   const th = w.toolbar.findIndex((t) => t.id === "thermal")
   const n = nvg >= 0 ? nvg : th

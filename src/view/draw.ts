@@ -1,5 +1,6 @@
-import { BEAM_ARC, BEAM_R, CRAFT_WAIT, FLARE_ARM, FLARE_R, GAP_MAX, PATH_HOLD, beams, daylight, type Burst, type World } from "../sim/world"
-import { actor, groundTile, limbSprite, scenery, vehicleArt, type Pose } from "./sprites"
+import { card } from "../content/catalog"
+import { BEAM_ARC, BEAM_R, CRAFT_WAIT, FLARE_ARM, FLARE_R, GAP_MAX, PATH_HOLD, beams, daylight, type Burst, type Inbound, type World } from "../sim/world"
+import { actor, cargo, groundTile, limbSprite, octo, scenery, vehicleArt, type Pose } from "./sprites"
 
 export type Particle = {
   x: number
@@ -227,9 +228,11 @@ export function draw(
       paintCache(g, d.cardId, X(d.x), Y(d.y))
       continue
     }
+    if (d.kind !== "gear") continue
     const spr = scenery("crate")
     if (!spr) continue
-    if (d.kind === "gear" && Math.floor(w.t * 4) % 2 === 0) g.globalAlpha = 0.55
+    const fade = revealAlpha(w, 0, d.id)
+    g.globalAlpha = fade < 1 ? fade : Math.floor(w.t * 4) % 2 === 0 ? 0.55 : 1
     blit(g, spr, X(d.x), Y(d.y))
     g.globalAlpha = 1
   }
@@ -238,6 +241,7 @@ export function draw(
   for (const b of bodies) {
     const x = X(b.x)
     const y = Y(b.y)
+    g.globalAlpha = revealAlpha(w, b.id, 0)
     const veh = vehicleArt(b.kind)
     if (veh) {
       g.save()
@@ -295,6 +299,7 @@ export function draw(
         g.fillRect(x - (seats * 3) / 2 + i * 3, y - 20, 2, 2)
       }
     }
+    g.globalAlpha = 1
   }
 
   g.strokeStyle = "#d5d0c6"
@@ -344,6 +349,8 @@ export function draw(
   }
   g.globalAlpha = 1
 
+  paintDrones(g, w, X, Y, dt)
+
   paintSky(g, w, bw, bh)
   paintNight(g, w, bw, bh, X, Y, zoom)
 
@@ -380,6 +387,68 @@ export function draw(
   paintSignals(ctx, w, width, height, bw, bh, zoom, cx, cy)
 }
 
+const CABLE = 7
+const LIFT_T = 1.6
+let liftWorld: World | null = null
+let lastInbound: Inbound[] = []
+let lifts: { x: number; y: number; w: number; h: number; t: number }[] = []
+
+function cargoOf(w: World, f: Inbound) {
+  const hero = w.heroes[f.cardId]
+  if (hero) return cargo(hero.chassis)
+  if (f.loot) return cargo(null)
+  const kind = card(f.cardId).kind
+  return cargo(kind === "unit" || kind === "vehicle" ? f.cardId : null)
+}
+
+function paintDrone(g: CanvasRenderingContext2D, w: World, x: number, hook: number, span: number, ends: [number, number][]) {
+  const spr = octo(span, Math.floor(w.t * 20))
+  g.drawImage(spr, Math.round(x - spr.width / 2), Math.round(hook - spr.height + 1))
+  g.fillStyle = "#6a6860"
+  for (const [ex, ey] of ends) {
+    const n = Math.max(1, Math.round(Math.max(Math.abs(ex - x), ey - hook)))
+    for (let i = 0; i <= n; i++) g.fillRect(Math.round(x + ((ex - x) * i) / n), Math.round(hook + ((ey - hook) * i) / n), 1, 1)
+  }
+}
+
+function paintDrones(g: CanvasRenderingContext2D, w: World, X: (x: number) => number, Y: (y: number) => number, dt: number) {
+  if (liftWorld !== w) {
+    liftWorld = w
+    lastInbound = []
+    lifts = []
+  }
+  for (const f of lastInbound) {
+    if (w.inbound.includes(f) || !w.drops.some((d) => d.x === f.x && d.y === f.y)) continue
+    const spr = cargoOf(w, f)
+    lifts.push({ x: f.x, y: f.y, w: spr.width, h: spr.height, t: 0 })
+  }
+  lastInbound = [...w.inbound]
+  for (const l of lifts) l.t += dt
+  lifts = lifts.filter((l) => l.t < LIFT_T)
+
+  for (const f of w.inbound) {
+    const spr = cargoOf(w, f)
+    const gx = X(f.x)
+    const gy = Y(f.y)
+    const alt = Math.round(f.t * 16)
+    g.fillStyle = "rgba(0,0,0,.3)"
+    g.fillRect(gx - 4 + Math.min(3, alt >> 4), gy, 8 - Math.min(6, alt >> 3), 1)
+    blit(g, spr, gx, gy - alt)
+    const top = gy - alt - spr.height + 2
+    const half = Math.floor(spr.width / 2) - 1
+    paintDrone(g, w, gx, top - CABLE, spr.width, [[gx - half, top], [gx + half, top]])
+  }
+
+  for (const l of lifts) {
+    const k = l.t / LIFT_T
+    const gx = X(l.x) + Math.round(k * k * 14)
+    const hook = Y(l.y) - l.h + 2 - CABLE - Math.round(k * k * 60)
+    g.globalAlpha = Math.max(0, 1 - k * k)
+    paintDrone(g, w, gx, hook, l.w, [[gx - 1, hook + 4], [gx + 1, hook + 4]])
+  }
+  g.globalAlpha = 1
+}
+
 function paintBird(g: CanvasRenderingContext2D, x: number, y: number, ang: number) {
   g.save()
   g.translate(x, y)
@@ -391,7 +460,7 @@ function paintBird(g: CanvasRenderingContext2D, x: number, y: number, ang: numbe
 }
 
 function paintSky(g: CanvasRenderingContext2D, w: World, bw: number, bh: number) {
-  const day = daylight(w.t)
+  const day = daylight(w.t + w.dayOff)
   if (w.weather === "fog") {
     g.fillStyle = "rgba(150,150,146,.22)"
     g.fillRect(0, 0, bw, bh)
@@ -428,7 +497,7 @@ function paintNight(
   Y: (y: number) => number,
   zoom: number,
 ) {
-  if (daylight(w.t) >= 0.45 || w.vision !== "off") return
+  if (daylight(w.t + w.dayOff) >= 0.45 || w.vision !== "off") return
   if (!shade || shade.width !== bw || shade.height !== bh) {
     shade = document.createElement("canvas")
     shade.width = bw
@@ -705,12 +774,6 @@ function paintSignals(
     const x = sx(f.x)
     const y = sy(f.y)
     markFlare(ctx, x, y, width, height, 72, w.t)
-    const spr = scenery("crate")
-    const tip = x >= 36 && x <= width - 36 && y >= 36 && y <= height - 36
-    if (spr && tip) {
-      const lift = 18 + f.t * 36
-      ctx.drawImage(spr, x - 18, y - lift - 36, 36, 32)
-    }
   }
   if (w.lzOn || w.flareOn) {
     const x = sx(w.flareX)
@@ -942,6 +1005,14 @@ function heatOf(spr: HTMLCanvasElement) {
   cg.fillRect(0, 0, c.width, c.height)
   heats.set(spr, c)
   return c
+}
+
+function revealAlpha(w: World, bodyId: number, dropId: number) {
+  for (const r of w.reveals) {
+    if (bodyId && r.bodyId === bodyId) return Math.max(0, Math.min(1, r.t / r.dur))
+    if (dropId && r.dropId === dropId) return Math.max(0, Math.min(1, r.t / r.dur))
+  }
+  return 1
 }
 
 function blit(g: CanvasRenderingContext2D, c: HTMLCanvasElement, x: number, y: number) {

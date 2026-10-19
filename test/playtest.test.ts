@@ -137,7 +137,7 @@ function runOut(w: World, rounds: number) {
   while (w.phase === "run" && guard < 12000) {
     const giveUp = w.lzOn && w.t > w.flareAt + 25
     const push = w.depth < rounds && !w.craftOn && !giveUp && (w.pathOn || w.t >= w.pathAt - 10)
-    const cmd = push ? toward(w, w.pathOn ? w.pathX : 0, w.pathOn ? w.pathY : 30) : policy(w)
+    const cmd = push ? toward(w, w.pathX, w.pathY) : policy(w)
     try {
       step(w, cmd, 1 / 30)
     } catch (err) {

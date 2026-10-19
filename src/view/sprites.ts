@@ -513,6 +513,38 @@ export function preview(id: string, size: number): HTMLCanvasElement {
   return copyCanvas(c)
 }
 
+const octos = new Map<string, HTMLCanvasElement>()
+
+export function octo(span: number, frame: number): HTMLCanvasElement {
+  const w = Math.max(22, span + 4) | 0
+  const key = `${w}:${frame & 1}`
+  const hit = octos.get(key)
+  if (hit) return hit
+  const c = cv(w, 9)
+  const g = c.getContext("2d")!
+  const mid = w / 2
+  const back = [0.3, 0.7].flatMap((k) => [k * mid - 2, w - k * mid - 2])
+  const front = [0, 0.45].flatMap((k) => [k * mid, w - k * mid - 3])
+  rects(g, frame & 1 ? "#8a8680" : "#5a5854", [...back.map((x) => [Math.round(x), 0, 4, 1]), ...front.map((x) => [Math.round(x), 2, 3, 1])])
+  rects(g, "#2a2824", [...back.map((x) => [Math.round(x) + 1, 1, 1, 3]), ...front.map((x) => [Math.round(x) + 1, 3, 1, 1])])
+  rects(g, "#4a4844", [[1, 4, w - 2, 1]])
+  rects(g, "#5a5854", [[Math.round(mid) - 3, 3, 6, 4]])
+  rects(g, "#2a2824", [[Math.round(mid) - 2, 5, 4, 1], [Math.round(mid) - 1, 7, 2, 2]])
+  octos.set(key, c)
+  return c
+}
+
+const cargos = new Map<string, HTMLCanvasElement>()
+
+export function cargo(kind: string | null): HTMLCanvasElement {
+  const key = kind ?? ""
+  const hit = cargos.get(key)
+  if (hit) return hit
+  const c = (kind && (actor(kind, "idle", false) ?? vehicleFlat(kind))) || scenery("crate")!
+  cargos.set(key, c)
+  return c
+}
+
 function vehicleFlat(id: string) {
   const v = vehicles.get(id)
   if (!v) return null

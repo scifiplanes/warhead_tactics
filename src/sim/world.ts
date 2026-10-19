@@ -134,6 +134,7 @@ export type Drop = {
 }
 
 export type Inbound = { x: number; y: number; t: number; cardId: string; loot: boolean }
+export type Reveal = { x: number; y: number; tx: number; ty: number; t: number; dur: number; bodyId: number; dropId: number }
 
 export type World = {
   seed: number
@@ -148,6 +149,7 @@ export type World = {
   props: Prop[]
   drops: Drop[]
   inbound: Inbound[]
+  reveals: Reveal[]
   deck: string[]
   toolbar: Slot[]
   groupLabel: string
@@ -160,6 +162,7 @@ export type World = {
   flareHold: number
   flareArm: number
   craftOn: boolean
+  embarked: boolean
   loadT: number
   banner: string
   flareAt: number
@@ -169,6 +172,14 @@ export type World = {
   pathHold: number
   pathAt: number
   depth: number
+  ground: string
+  bearing: number
+  pressure: string
+  apex: string
+  escort: string
+  skyMain: Weather
+  skyAlt: Weather
+  dayOff: number
   lost: number
   dropsTaken: number
   hullDamage: number
@@ -267,12 +278,125 @@ const WEATHER: Record<Weather, { conceal: number; move: number; bog: number; fir
   dust: { conceal: 2, move: 1.1, bog: 1.15, fire: 0.85 },
 }
 const SKY: Weather[] = ["clear", "rain", "snow", "fog", "dust"]
+const GROUNDS = ["open", "timber", "yard", "bog", "teeth"] as const
+type Ground = (typeof GROUNDS)[number]
+const BANDS = [
+  ["drift", "skirmish"],
+  ["herd", "coil"],
+  ["line", "air"],
+  ["apex"],
+]
+const APEX = ["reach", "mast", "dray", "rust_plow", "post", "bloom", "cluster", "fog", "ball", "amalgam"]
+const ESCORT = ["walker", "roller", "slab", "drone", "coil", "flake"]
+// ponytail: offset 180 is a full day and matches 0, so the fourth opening is midnight
+const DAY_OFF = [0, 60, 120, 90]
+const PROP_W: Record<Ground, [Prop["kind"], number][]> = {
+  open: [
+    ["wreck", 45],
+    ["ruin", 35],
+    ["burnt_tree", 10],
+    ["post", 10],
+  ],
+  timber: [
+    ["burnt_tree", 75],
+    ["wreck", 15],
+    ["ruin", 10],
+  ],
+  yard: [
+    ["ruin", 30],
+    ["wire", 30],
+    ["teeth", 20],
+    ["post", 20],
+  ],
+  bog: [
+    ["wreck", 60],
+    ["burnt_tree", 20],
+    ["ruin", 20],
+  ],
+  teeth: [
+    ["teeth", 55],
+    ["post", 35],
+    ["wire", 10],
+  ],
+}
+const DENSE: Record<Ground, number> = { open: 0.55, timber: 1.1, yard: 1, bog: 0.7, teeth: 0.85 }
+const RECIPE: Record<string, { body: [string, number][]; early: [string, number][] }> = {
+  drift: {
+    body: [
+      ["shambler", 50],
+      ["doghead", 25],
+      ["pighead", 15],
+      ["mutant", 10],
+    ],
+    early: [
+      ["shambler", 70],
+      ["doghead", 30],
+    ],
+  },
+  skirmish: {
+    body: [
+      ["scoot", 45],
+      ["drone", 35],
+      ["tract", 20],
+    ],
+    early: [
+      ["scoot", 60],
+      ["drone", 40],
+    ],
+  },
+  herd: {
+    body: [
+      ["pighead", 35],
+      ["goathead", 30],
+      ["crowhead", 20],
+      ["doghead", 15],
+    ],
+    early: [
+      ["doghead", 55],
+      ["pighead", 45],
+    ],
+  },
+  coil: {
+    body: [
+      ["coil", 40],
+      ["flake", 35],
+      ["drone", 25],
+    ],
+    early: [
+      ["drone", 60],
+      ["coil", 40],
+    ],
+  },
+  line: {
+    body: [
+      ["walker", 35],
+      ["roller", 25],
+      ["slab", 20],
+      ["drone", 20],
+    ],
+    early: [
+      ["drone", 65],
+      ["walker", 35],
+    ],
+  },
+  air: {
+    body: [
+      ["kite", 45],
+      ["drone", 35],
+      ["flake", 20],
+    ],
+    early: [
+      ["drone", 60],
+      ["kite", 40],
+    ],
+  },
+}
 export const FLARE_ARM = 3
 export const LOAD_STEP = 0.8
 export const FLARE_R = 5
 export const PATH_HOLD = 8
 const DROP_WARN = 3
-const DROP_EVERY = 5
+const DROP_EVERY = 14
 const STASH_R = 3
 const STASH_HOLD = 4
 const HORDE_EVERY = 2.4
@@ -288,7 +412,7 @@ const GAP_NUDGE = 0.22
 export function makeRun(seed: number, deck: string[], opts: RunOpts = {}): World {
   const w = blank(seed)
   w.diffHp = opts.diff === "easy" ? 0.75 : opts.diff === "hard" ? 1.35 : 1
-  scatter(w)
+  rollField(w)
   const ordered = deck.slice(0, DECK_CAP)
   const queue = ordered.slice()
   shuffle(w.rng, queue)
@@ -300,7 +424,7 @@ export function makeRun(seed: number, deck: string[], opts: RunOpts = {}): World
   for (const hero of opts.heroes ?? []) w.heroes[hero.id] = hero
   w.veteranIds = (opts.heroes ?? []).map((hero) => hero.id)
   shuffle(w.rng, w.hidden)
-  w.nextDrop = 2
+  w.nextDrop = 8
   w.nextHorde = 2
   w.flareAt = 48
   w.pathAt = 36
@@ -308,7 +432,6 @@ export function makeRun(seed: number, deck: string[], opts: RunOpts = {}): World
   w.commander = spawnBody(w, { kind: STARTER, x: 0, y: 0, inSection: true }).id
   const lead = w.bodies.find((b) => b.id === w.commander)
   if (lead) fitGun(lead, "rifle")
-  layMarsh(w)
   labels(w)
   grantThermal(w)
   grantNvg(w)
@@ -477,6 +600,7 @@ function blank(seed: number): World {
     props: [],
     drops: [],
     inbound: [],
+    reveals: [],
     deck: [],
     toolbar: [],
     groupLabel: "TIGHT",
@@ -489,6 +613,7 @@ function blank(seed: number): World {
     flareHold: 0,
     flareArm: 0,
     craftOn: false,
+    embarked: false,
     loadT: 0,
     banner: "",
     flareAt: 48,
@@ -498,6 +623,14 @@ function blank(seed: number): World {
     pathHold: 0,
     pathAt: 36,
     depth: 0,
+    ground: "open",
+    bearing: 0,
+    pressure: "drift",
+    apex: "reach",
+    escort: "drone",
+    skyMain: "clear",
+    skyAlt: "rain",
+    dayOff: 0,
     lost: 0,
     dropsTaken: 0,
     hullDamage: 0,
@@ -561,6 +694,7 @@ function tick(w: World, cmd: Commands, dt: number) {
   labels(w)
   drive(w, cmd, dt)
   drops(w, dt)
+  reveals(w, dt)
   pickup(w)
   horde(w, dt)
   rebuild(w)
@@ -712,7 +846,9 @@ function tryBoard(u: Body, v: Body) {
 function commandUnit(w: World): Body | null {
   const c = w.bodies.find((b) => b.id === w.commander && b.alive)
   if (c) return c
-  return w.bodies.find((b) => b.alive && b.inSection && b.side === "player" && !b.vehicle) ?? null
+  const foot = (follow: boolean) =>
+    w.bodies.find((b) => b.alive && b.inSection && b.side === "player" && !b.vehicle && b.follow === follow)
+  return foot(false) ?? foot(true) ?? null
 }
 
 function commandHull(w: World, unit: Body | null): Body | null {
@@ -781,6 +917,7 @@ function drive(w: World, cmd: Commands, dt: number) {
   }
 
   const loose = feet(w)
+  if (boss?.follow && !hull && !loose.includes(boss)) loose.unshift(boss)
   const open = Math.max(0, Math.min(1, w.gap / GAP_MAX))
   const radius = 1.15 + 6.8 * open
   const core = hull ?? boss
@@ -998,11 +1135,59 @@ function otherHull(w: World, v: Body, x: number, y: number): Body | null {
   return null
 }
 
-function clearMark(x: number, y: number) {
-  if (Math.hypot(x, y + 30) < 8) return false
-  if (Math.hypot(x, y - 30) < 8) return false
-  if (Math.hypot(x - 22, y - 8) < 6) return false
+function clearMark(w: World, x: number, y: number) {
+  if (Math.hypot(x - w.pathX, y - w.pathY) < 8) return false
+  if (Math.hypot(x - w.flareX, y - w.flareY) < 8) return false
+  if (Math.hypot(x - w.stashX, y - w.stashY) < 6) return false
   return true
+}
+
+const REVEAL = 1.6
+
+export function discover(w: World, cardId: string, x: number, y: number) {
+  const dx = x - w.ax
+  const dy = y - w.ay
+  const away = Math.atan2(dy, dx)
+  const ang = away + (w.rng() - 0.5) * 1.2
+  const sx = clamp(x + Math.cos(ang) * 8, -MAP + 2, MAP - 2)
+  const sy = clamp(y + Math.sin(ang) * 8, -MAP + 2, MAP - 2)
+  const drop = placeDrop(w, cardId, x, y)
+  const body = drop.bodyId ? w.bodies.find((b) => b.id === drop.bodyId) : undefined
+  if (body) {
+    body.x = sx
+    body.y = sy
+    body.hdg = Math.atan2(y - sy, x - sx)
+    if (Math.abs(x - sx) > 0.02) body.face = x < sx ? -1 : 1
+  } else {
+    drop.x = sx
+    drop.y = sy
+  }
+  w.reveals.push({ x: sx, y: sy, tx: x, ty: y, t: 0, dur: REVEAL, bodyId: drop.bodyId, dropId: drop.id })
+}
+
+function reveals(w: World, dt: number) {
+  const live: Reveal[] = []
+  for (const r of w.reveals) {
+    const body = r.bodyId ? w.bodies.find((b) => b.id === r.bodyId) : undefined
+    const drop = w.drops.find((d) => d.id === r.dropId)
+    if (body?.inSection || drop?.taken) continue
+    r.t += dt
+    const k = Math.min(1, r.t / r.dur)
+    const e = k * k * (3 - 2 * k)
+    const x = r.x + (r.tx - r.x) * e
+    const y = r.y + (r.ty - r.y) * e
+    if (body?.alive) {
+      body.x = x
+      body.y = y
+      body.moved = k < 1
+      body.hdg = Math.atan2(r.ty - r.y, r.tx - r.x)
+    } else if (drop?.kind === "gear") {
+      drop.x = x
+      drop.y = y
+    }
+    if (k < 1) live.push(r)
+  }
+  w.reveals = live
 }
 
 function signal(w: World, cardId: string, x: number, y: number, loot = false) {
@@ -1030,14 +1215,22 @@ function drops(w: World, dt: number) {
   w.nextDrop = DROP_EVERY
   const id = w.deckQueue.shift()
   if (!id) return
-  let x = 0
-  let y = 0
-  for (let i = 0; i < 12; i++) {
-    x = (w.rng() * 2 - 1) * 30
-    y = (w.rng() * 2 - 1) * 30
-    if (Math.hypot(x, y) < 8) continue
-    if (!clearMark(x, y)) continue
-    if (!hitProp(w, x, y, 1.2)) break
+  const held = [
+    ...w.inbound.filter((f) => !f.loot),
+    ...w.drops.filter((d) => !d.taken && d.kind !== "loot"),
+  ]
+  let x = w.ax
+  let y = w.ay
+  for (let i = 0; i < 16; i++) {
+    const ang = w.rng() * Math.PI * 2
+    const dist = 24 + w.rng() * 24
+    x = clamp(w.ax + Math.cos(ang) * dist, -MAP + 4, MAP - 4)
+    y = clamp(w.ay + Math.sin(ang) * dist, -MAP + 4, MAP - 4)
+    if (Math.hypot(x - w.ax, y - w.ay) < 20) continue
+    if (!clearMark(w, x, y)) continue
+    if (hitProp(w, x, y, 1.2)) continue
+    if (held.some((s) => Math.hypot(s.x - x, s.y - y) < 22)) continue
+    break
   }
   signal(w, id, x, y)
 }
@@ -1053,12 +1246,12 @@ function field(w: World, dt: number) {
     x = (w.rng() * 2 - 1) * 24
     y = (w.rng() * 2 - 1) * 24
     if (Math.hypot(x - w.ax, y - w.ay) < 6) continue
-    if (!clearMark(x, y)) continue
+    if (!clearMark(w, x, y)) continue
     if (!hitProp(w, x, y, 1)) break
   }
   if (w.hidden.length && w.rng() < 0.45) {
     const id = w.hidden.shift()
-    if (id) signal(w, id, x, y)
+    if (id) discover(w, id, x, y)
     return
   }
   const loot = (["salvage", "intel", "sample"] as const)[(w.rng() * 3) | 0]
@@ -1254,46 +1447,40 @@ function horde(w: World, dt: number) {
   let alive = 0
   for (const b of w.bodies) if (b.alive && b.side !== "player") alive++
   if (alive >= HOSTILE_CAP) return
-  const roll = w.rng()
-  const early = w.t < 22
-  const apex = ["reach", "mast", "dray", "rust_plow", "post", "bloom", "cluster", "fog", "ball", "amalgam"]
-  const kind = early
-    ? roll < 0.72
-      ? "shambler"
-      : roll < 0.9
-        ? "doghead"
-        : "scoot"
-    : roll < 0.2
-      ? "shambler"
-      : roll < 0.34
-        ? apex[Math.min(apex.length - 1, (((roll - 0.2) / 0.14) * apex.length) | 0)]
-        : roll < 0.5
-          ? "doghead"
-          : roll < 0.64
-            ? "mutant"
-            : roll < 0.76
-              ? "pighead"
-              : roll < 0.86
-                ? "drone"
-                : roll < 0.94
-                  ? "walker"
-                  : roll < 0.955
-                    ? "scoot"
-                    : roll < 0.968
-                      ? "goathead"
-                      : roll < 0.974
-                        ? "crowhead"
-                        : roll < 0.978
-                          ? "tract"
-                          : roll < 0.982
-                            ? "coil"
-                            : roll < 0.986
-                              ? "flake"
-                              : roll < 0.991
-                                ? "roller"
-                                : roll < 0.996
-                                  ? "kite"
-                                  : "slab"
+  const kind = hostileKind(w)
+  const at = spawnAt(w)
+  spawnBody(w, { kind, x: clamp(at.x, -MAP + 1, MAP - 1), y: clamp(at.y, -MAP + 1, MAP - 1) })
+}
+
+function hostileKind(w: World) {
+  if (w.pressure === "apex") return w.t < 22 || w.rng() >= 0.22 ? w.escort : w.apex
+  const row = RECIPE[w.pressure] ?? RECIPE.drift
+  return pick(w.rng, w.t < 22 ? row.early : row.body)
+}
+
+function pick(rng: () => number, bag: [string, number][]) {
+  let roll = rng() * bag.reduce((sum, [, n]) => sum + n, 0)
+  for (const [id, n] of bag) {
+    roll -= n
+    if (roll <= 0) return id
+  }
+  return bag[bag.length - 1][0]
+}
+
+function spawnAt(w: World) {
+  if (w.rng() < 0.6) {
+    const pathD = Math.hypot(w.ax - w.pathX, w.ay - w.pathY)
+    const lzD = Math.hypot(w.ax - w.flareX, w.ay - w.flareY)
+    const fx = pathD >= lzD ? w.pathX : w.flareX
+    const fy = pathD >= lzD ? w.pathY : w.flareY
+    let dx = fx - w.ax
+    let dy = fy - w.ay
+    const d = Math.hypot(dx, dy) || 1
+    dx /= d
+    dy /= d
+    const along = (w.rng() * 2 - 1) * 36
+    return { x: w.ax + dx * 64 - dy * along, y: w.ay + dy * 64 + dx * along }
+  }
   const edge = Math.floor(w.rng() * 4)
   const along = (w.rng() * 2 - 1) * 36
   const off = 64
@@ -1312,7 +1499,7 @@ function horde(w: World, dt: number) {
     x += along
     y += off
   }
-  spawnBody(w, { kind, x: clamp(x, -MAP + 1, MAP - 1), y: clamp(y, -MAP + 1, MAP - 1) })
+  return { x, y }
 }
 
 function ai(w: World, dt: number) {
@@ -1338,6 +1525,7 @@ function ai(w: World, dt: number) {
 function combat(w: World, dt: number) {
   for (const b of w.bodies) {
     if (!b.alive || b.boarded !== null || b.stun > 0) continue
+    if (w.reveals.some((r) => r.bodyId === b.id)) continue
     if (!b.mobileFire) {
       if (b.moved) b.deploy = 0
       else b.deploy = Math.min(b.deployNeed, b.deploy + dt)
@@ -1347,7 +1535,7 @@ function combat(w: World, dt: number) {
     const lamp = b.side === "player" && !b.android && !b.vehicle
     if (b.damage <= 0 || b.range <= 0 || !canFire(b)) continue
     if ((!ready || b.cool > 0) && !lamp) continue
-    const blind = daylight(w.t) < NIGHT && w.vision === "off"
+    const blind = sun(w) < NIGHT && w.vision === "off"
     const span = b.side === "player" ? b.range + 1.2 : b.range
     const tgt = nearest(w, b, span * sight(w, blind), (o) => o.side !== b.side && o.boarded === null)
     if (!tgt) continue
@@ -1435,9 +1623,14 @@ function inLz(w: World, b: Body) {
   return Math.hypot(b.x - w.flareX, b.y - w.flareY) <= FLARE_R + b.radius
 }
 
+function squadUnit(b: Body) {
+  return b.alive && b.inSection && b.side === "player" && !b.vehicle && b.kind !== "sentry_gun"
+}
+
 function liftOut(w: World, b: Body) {
   if (!b.alive) return
   for (const u of w.bodies) if (u.alive && u.boarded === b.id) liftOut(w, u)
+  if (!b.vehicle && b.kind !== "sentry_gun") w.embarked = true
   b.alive = false
   b.inSection = false
   b.boarded = null
@@ -1452,8 +1645,6 @@ function flare(w: World, _cmd: Commands, dt: number) {
       w.t > 8
     if (w.t >= w.flareAt || (spent && w.depth === 0)) {
       w.lzOn = true
-      w.flareX = 0
-      w.flareY = -30
       toast(w, "LZ marked", "unit")
     }
   }
@@ -1514,8 +1705,6 @@ function flare(w: World, _cmd: Commands, dt: number) {
 function path(w: World, dt: number) {
   if (!w.pathOn && !w.craftOn && w.t >= w.pathAt) {
     w.pathOn = true
-    w.pathX = 0
-    w.pathY = 30
     w.pathHold = 0
     toast(w, "Path marked", "unit")
   }
@@ -1567,6 +1756,7 @@ function deeper(w: World) {
   w.props = []
   w.drops = []
   w.inbound = []
+  w.reveals = []
   w.gibs = []
   w.marks = []
   w.bolts = []
@@ -1581,19 +1771,18 @@ function deeper(w: World) {
   w.stashHold = 0
   w.stashAt = w.t + 22
   w.marshes = []
-  scatter(w)
-  layMarsh(w)
+  rollField(w)
   toast(w, "DEEPER", "unit")
 }
 
 function ability(w: World, cmd: Commands) {
-  if (daylight(w.t) >= NIGHT) w.vision = "off"
+  if (sun(w) >= NIGHT) w.vision = "off"
   if (cmd.ability === null) return
   const slot = w.toolbar[cmd.ability]
   if (!slot) return
   const id = slot.id
   if (id === "nvg" || id === "thermal") {
-    if (daylight(w.t) >= NIGHT) {
+    if (sun(w) >= NIGHT) {
       toast(w, "Daylight", "gear")
       return
     }
@@ -1718,7 +1907,9 @@ function ability(w: World, cmd: Commands) {
 
 function ending(w: World) {
   if (w.phase !== "run") return
-  if (!w.bodies.some((b) => b.alive && b.inSection && b.side === "player")) w.phase = "lose"
+  if (w.bodies.some(squadUnit)) return
+  if (w.craftOn && w.embarked) return
+  w.phase = "lose"
 }
 
 function pickFit(w: World, c: ReturnType<typeof card>): Body | null {
@@ -1849,13 +2040,12 @@ function bog(w: World, vehicle: boolean, kind = "", x = 0, y = 0, who?: Body) {
 
 function layMarsh(w: World) {
   w.marshes = []
-  for (let i = 0; i < 7 * (MAP / 40) ** 2; i++) {
-    const x = (w.rng() * 2 - 1) * (MAP - 12)
-    const y = (w.rng() * 2 - 1) * (MAP - 12)
-    if (Math.hypot(x, y) < 8) continue
-    if (Math.hypot(x, y + 30) < 8) continue
-    if (Math.hypot(x, y - 30) < 8) continue
-    w.marshes.push({ x, y, r: 3.2 + w.rng() * 1.6 })
+  const sheets = w.ground === "bog"
+  const n = sheets ? 2 + ((w.rng() * 3) | 0) : 10 + ((w.rng() * 10) | 0)
+  for (let i = 0; i < n; i++) {
+    const at = corridor(w, 10)
+    if (!at) continue
+    w.marshes.push({ x: at.x, y: at.y, r: sheets ? 14 + w.rng() * 14 : 3.2 + w.rng() * 1.6 })
   }
 }
 
@@ -1889,8 +2079,6 @@ function tails(w: World, dt: number) {
 function stash(w: World, dt: number) {
   if (!w.stashOn && !w.craftOn && w.t >= w.stashAt) {
     w.stashOn = true
-    w.stashX = 22
-    w.stashY = 8
     w.stashHold = 0
     toast(w, "Stash marked", "loot")
   }
@@ -1915,7 +2103,7 @@ function stash(w: World, dt: number) {
 }
 
 export function beams(w: World): Body[] {
-  if (daylight(w.t) >= NIGHT || w.vision !== "off") return []
+  if (sun(w) >= NIGHT || w.vision !== "off") return []
   return w.bodies.filter(
     (b) => b.alive && b.inSection && b.side === "player" && !b.android && !b.vehicle && b.boarded === null,
   )
@@ -1935,7 +2123,7 @@ function inBeam(w: World, x: number, y: number) {
 function sight(w: World, lit = false) {
   const hide = WEATHER[w.weather].conceal * 0.12
   let s = Math.max(0.35, 1 - hide)
-  if (daylight(w.t) < NIGHT) s *= w.vision === "off" ? (lit ? 1 : 0.4) : 1.2
+  if (sun(w) < NIGHT) s *= w.vision === "off" ? (lit ? 1 : 0.4) : 1.2
   let spot = 0
   for (const b of w.bodies) if (b.alive && b.inSection && b.spot > spot) spot = b.spot
   if (spot) s *= 1 + 0.15 * spot
@@ -1953,7 +2141,7 @@ function smoked(w: World, b: Body) {
 function climate(w: World, dt: number) {
   w.weatherAt -= dt
   if (w.weatherAt > 0) return
-  w.weather = SKY[(w.rng() * SKY.length) | 0]
+  w.weather = w.rng() < 0.7 ? w.skyMain : w.skyAlt
   w.weatherAt = 36
   toast(w, w.weather.toUpperCase(), "line")
 }
@@ -2360,32 +2548,117 @@ function slot(i: number, n: number, radius: number): [number, number] {
 }
 
 function scatter(w: World) {
-  for (let i = 0; i < 56 * (MAP / 40) ** 2; i++) {
-    let x = 0
-    let y = 0
-    let ok = false
-    for (let n = 0; n < 10; n++) {
-      x = (w.rng() * 2 - 1) * (MAP - 6)
-      y = (w.rng() * 2 - 1) * (MAP - 6)
-      if (Math.hypot(x, y) < 3.6) continue
-      if (Math.hypot(x, y + 30) < 8) continue
-      if (Math.abs(x) < 5 && y < 4) continue
-      ok = true
-      break
-    }
-    if (!ok) continue
-    const kind = (["burnt_tree", "ruin", "wire", "wreck", "post", "teeth"] as const)[i % 6]
+  const ground = (GROUNDS as readonly string[]).includes(w.ground) ? (w.ground as Ground) : "open"
+  const n = Math.round(320 * DENSE[ground])
+  for (let i = 0; i < n; i++) {
+    const at = cover(w)
+    if (!at) continue
+    const kind = pick(w.rng, PROP_W[ground]) as Prop["kind"]
     const radius = kind === "post" ? 0.5 : kind === "burnt_tree" ? 0.7 : kind === "teeth" ? 0.85 : 1.05
     w.props.push({
       id: w.props.length + 1,
       kind,
-      x,
-      y,
+      x: at.x,
+      y: at.y,
       hp: 30,
       radius,
       alive: true,
     })
   }
+}
+
+function rollField(w: World) {
+  w.ground = GROUNDS[(w.rng() * GROUNDS.length) | 0]
+  w.bearing = (w.rng() * 8) | 0
+  const band = BANDS[Math.min(BANDS.length - 1, w.depth)]
+  w.pressure = band[(w.rng() * band.length) | 0]
+  w.apex = APEX[(w.rng() * APEX.length) | 0]
+  w.escort = ESCORT[(w.rng() * ESCORT.length) | 0]
+  const pair = skyPair(w.ground, w.rng)
+  w.skyMain = pair[0]
+  w.skyAlt = pair[1]
+  w.weather = w.skyMain
+  w.weatherAt = 52
+  w.dayOff = DAY_OFF[(w.rng() * DAY_OFF.length) | 0]
+  const ang = (w.bearing * Math.PI) / 4
+  const c = Math.cos(ang)
+  const s = Math.sin(ang)
+  w.pathX = c * 30
+  w.pathY = s * 30
+  w.flareX = -w.pathX
+  w.flareY = -w.pathY
+  const side = w.rng() < 0.5 ? 1 : -1
+  const off = 16 + w.rng() * 12
+  const along = (w.rng() * 2 - 1) * 10
+  w.stashX = -s * off * side + c * along
+  w.stashY = c * off * side + s * along
+  w.props = []
+  w.marshes = []
+  layMarsh(w)
+  scatter(w)
+}
+
+function skyPair(ground: string, rng: () => number): [Weather, Weather] {
+  if (ground === "timber") return ["clear", "rain"]
+  if (ground === "yard") return ["dust", "fog"]
+  if (ground === "bog") return rng() < 0.5 ? ["rain", "fog"] : ["fog", "rain"]
+  if (ground === "teeth") return ["dust", "clear"]
+  const a = SKY[(rng() * SKY.length) | 0]
+  let b = SKY[(rng() * SKY.length) | 0]
+  if (b === a) b = SKY[(SKY.indexOf(a) + 1) % SKY.length]
+  return [a, b]
+}
+
+function sun(w: World) {
+  return daylight(w.t + w.dayOff)
+}
+
+function onSegment(x: number, y: number, w: World, reach: number) {
+  const dx = w.pathX - w.flareX
+  const dy = w.pathY - w.flareY
+  const l2 = dx * dx + dy * dy || 1
+  let t = ((x - w.flareX) * dx + (y - w.flareY) * dy) / l2
+  t = Math.max(0, Math.min(1, t))
+  return Math.hypot(x - (w.flareX + dx * t), y - (w.flareY + dy * t)) <= reach
+}
+
+function corridor(w: World, pad: number) {
+  for (let n = 0; n < 12; n++) {
+    const x = (w.rng() * 2 - 1) * 110
+    const y = (w.rng() * 2 - 1) * 110
+    if (!onSegment(x, y, w, 90)) continue
+    if (Math.hypot(x, y) < pad) continue
+    if (!clearMark(w, x, y)) continue
+    return { x, y }
+  }
+  return null
+}
+
+function cover(w: World) {
+  const ang = (w.bearing * Math.PI) / 4
+  const c = Math.cos(ang)
+  const s = Math.sin(ang)
+  for (let n = 0; n < 12; n++) {
+    let x = 0
+    let y = 0
+    if (w.ground === "yard" || w.rng() < 0.7) {
+      const lane = w.rng() < 0.5 ? 1 : -1
+      const spread = w.ground === "timber" ? 14 : w.ground === "yard" ? 6 : 28
+      const along = (w.rng() * 2 - 1) * (w.ground === "yard" ? 70 : 36)
+      const perp = lane * (w.ground === "yard" ? 14 : 18) + (w.rng() * 2 - 1) * spread
+      x = c * along - s * perp
+      y = s * along + c * perp
+    } else {
+      x = (w.rng() * 2 - 1) * 110
+      y = (w.rng() * 2 - 1) * 110
+    }
+    if (!onSegment(x, y, w, 90)) continue
+    if (Math.hypot(x, y) < 6) continue
+    if (!clearMark(w, x, y)) continue
+    if (w.ground === "bog" && w.marshes.some((m) => Math.hypot(m.x - x, m.y - y) < m.r + 2)) continue
+    return { x, y }
+  }
+  return null
 }
 
 // ponytail: full rebuild each tick. Hostile cap is 36; widen cells if that cap moves.

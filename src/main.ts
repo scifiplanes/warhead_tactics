@@ -6,7 +6,6 @@ import {
   step,
   takeBursts,
   balanceLine,
-  daylight,
   type Commands,
   type Diff,
   type World,
@@ -25,6 +24,10 @@ const hudEl = document.querySelector<HTMLElement>("#hud")!
 const endEl = document.querySelector<HTMLElement>("#end")!
 const pauseEl = document.querySelector<HTMLElement>("#paused")!
 const seedEl = document.querySelector<HTMLInputElement>("#seed")!
+function rollSeed() {
+  seedEl.value = String((Math.random() * 0x100000000) >>> 0 || 1)
+}
+rollSeed()
 const groupBtn = document.querySelector<HTMLButtonElement>("#group")!
 const spreadBtn = document.querySelector<HTMLButtonElement>("#spread")!
 const botBtn = document.querySelector<HTMLButtonElement>("#bot")!
@@ -211,6 +214,7 @@ document.querySelector("#again")!.addEventListener("click", () => {
   deckEl.classList.remove("hidden")
   hudEl.classList.add("hidden")
   world = null
+  rollSeed()
 })
 document.querySelector("#pause")!.addEventListener("click", () => togglePause(true))
 document.querySelector("#resume")!.addEventListener("click", () => togglePause(false))
@@ -529,9 +533,6 @@ function clock(t: number) {
 
 function paintHud(w: World) {
   document.querySelector("#timer")!.textContent = `${clock(w.t)}  ${speed > 1 ? "2×  " : ""}lost ${w.lost}`
-  const night = daylight(w.t) < 0.45
-  const vis = w.vision === "nvg" ? " NVG" : w.vision === "thermal" ? " THERM" : night ? " NIGHT" : ""
-  document.querySelector("#field")!.textContent = `${w.weather.toUpperCase()}${vis}`
   const dropIn = w.banner || `DROP ${Math.max(0, Math.ceil(w.nextDrop))}s`
   document.querySelector("#dropIn")!.textContent = dropIn
   document.querySelector("#kills")!.textContent = `KILLS ${w.kills}`

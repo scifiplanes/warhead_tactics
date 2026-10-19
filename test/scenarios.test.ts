@@ -11,6 +11,7 @@ import {
   IDLE,
   balanceLine,
   beams,
+  discover,
   makeRun,
   offerHero,
   placeDrop,
@@ -28,6 +29,9 @@ function quiet(seed = 1, deck: string[] = []) {
   w.stashAt = 1e9
   w.nextField = 1e9
   w.autoBoard = false
+  w.dayOff = 0
+  w.weather = "clear"
+  w.weatherAt = 1e9
   return w
 }
 
@@ -520,6 +524,34 @@ test("the flare arms, the craft waits, then the squad loads", () => {
   expect(w.lost).toBe(0)
 })
 
+test("a hull or a sentry with no unit loses, and a loaded hull still extracts", () => {
+  const wiped = quiet()
+  spawnBody(wiped, { kind: "jeep", x: 2, y: 0, inSection: true })
+  spawnBody(wiped, { kind: "sentry_gun", x: -2, y: 0, inSection: true })
+  wiped.bodies.find((b) => b.id === wiped.commander)!.alive = false
+  go(wiped, IDLE, 0.1)
+  expect(wiped.phase).toBe("lose")
+
+  const followed = quiet()
+  spawnBody(followed, { kind: "k9", x: 1, y: 0, inSection: true })
+  followed.bodies.find((b) => b.id === followed.commander)!.alive = false
+  go(followed, IDLE, 0.1)
+  expect(followed.phase).toBe("run")
+
+  const w = quiet()
+  w.lzOn = true
+  w.flareOn = true
+  w.craftOn = true
+  w.flareX = 0
+  w.flareY = 0
+  const cell = w.bodies.find((b) => b.inSection)!
+  cell.x = 0
+  cell.y = 0
+  spawnBody(w, { kind: "jeep", x: 1, y: 0, inSection: true })
+  go(w, IDLE, LOAD_STEP * 2 + 0.4)
+  expect(w.phase).toBe("win")
+})
+
 test("the first unit is the squad center", () => {
   const w = quiet()
   const med = w.bodies.find((b) => b.kind === "cell_rifle")!
@@ -591,10 +623,17 @@ test("a weapon is gear and replaces the gun", () => {
   expect(card("mortar").kind).toBe("gear")
 })
 
-test("the field mixes cover", () => {
-  const w = makeRun(3, [])
-  const kinds = new Set(w.props.map((p) => p.kind))
-  for (const id of ["burnt_tree", "ruin", "wire", "wreck", "post", "teeth"]) expect(kinds.has(id)).toBe(true)
+test("a field commits to one ground's cover", () => {
+  const seen = new Set<string>()
+  const mixes = new Set<string>()
+  for (let seed = 1; seed <= 20; seed++) {
+    const w = makeRun(seed, [])
+    const kinds = [...new Set(w.props.map((p) => p.kind))].sort()
+    mixes.add(kinds.join(","))
+    for (const id of kinds) seen.add(id)
+  }
+  expect([...seen].sort()).toEqual(["burnt_tree", "post", "ruin", "teeth", "wire", "wreck"])
+  expect(mixes.size).toBeGreaterThan(1)
 })
 
 test("deck cards wait in the airdrop queue", () => {
@@ -602,6 +641,26 @@ test("deck cards wait in the airdrop queue", () => {
   const kinds = w.bodies.filter((b) => b.inSection).map((b) => b.kind)
   expect(kinds).toEqual(["cell_rifle"])
   expect(w.deckQueue.slice().sort()).toEqual(["aegis", "medic", "plate"])
+})
+
+test("airdrops land a walk apart", () => {
+  const w = makeRun(3, ["plate", "mg", "stim"])
+  w.nextHorde = 1e9
+  w.nextField = 1e9
+  w.flareAt = 1e9
+  w.pathAt = 1e9
+  w.stashAt = 1e9
+  go(w, IDLE, 8.2)
+  expect(w.inbound).toHaveLength(1)
+  const first = w.inbound[0]
+  expect(Math.hypot(first.x - w.ax, first.y - w.ay)).toBeGreaterThan(20)
+  go(w, IDLE, 12)
+  const pending = [...w.inbound, ...w.drops.filter((d) => !d.taken && d.kind !== "loot")]
+  expect(pending).toHaveLength(1)
+  go(w, IDLE, 4)
+  const spots = [...w.inbound, ...w.drops.filter((d) => !d.taken && d.kind !== "loot")]
+  expect(spots.length).toBeGreaterThanOrEqual(2)
+  expect(Math.hypot(spots[0].x - spots[1].x, spots[0].y - spots[1].y)).toBeGreaterThan(18)
 })
 
 test("kills and loot pay credits, and a find stays locked until research", () => {
@@ -678,6 +737,28 @@ test("only the first cell is the lead", () => {
   const extra = spawnBody(w, { kind: "cell_rifle", x: 1, y: 0, inSection: true })
   expect(callSign(cells[0].kind, cells[0].id, cells[0].id)).toBe("LEAD")
   expect(callSign(extra.kind, extra.id, cells[0].id)).toBe("CELL")
+})
+
+test("a discovered card fades into its spot", () => {
+  const w = quiet()
+  spawnBody(w, { kind: "shambler", x: 30, y: 0, damage: 0, speed: 0, hp: 80 })
+  discover(w, "aegis", 30, 0)
+  discover(w, "jeep", 20, 16)
+  discover(w, "plate", -18, 12)
+  expect(w.inbound).toHaveLength(0)
+  const man = w.bodies.find((b) => b.kind === "aegis")!
+  const jeep = w.bodies.find((b) => b.kind === "jeep")!
+  const plate = w.drops.find((d) => d.cardId === "plate")!
+  expect(Math.hypot(man.x - 30, man.y)).toBeGreaterThan(4)
+  expect(Math.hypot(jeep.x - 20, jeep.y - 16)).toBeGreaterThan(4)
+  expect(Math.hypot(plate.x + 18, plate.y - 12)).toBeGreaterThan(4)
+  go(w, IDLE, 0.5)
+  expect(man.fired).toBe(0)
+  go(w, IDLE, 1.4)
+  expect(Math.hypot(man.x - 30, man.y)).toBeLessThan(0.25)
+  expect(Math.hypot(jeep.x - 20, jeep.y - 16)).toBeLessThan(0.25)
+  expect(Math.hypot(plate.x + 18, plate.y - 12)).toBeLessThan(0.25)
+  expect(w.reveals).toHaveLength(0)
 })
 
 test("an inbound drop flares before it lands", () => {
@@ -1309,12 +1390,70 @@ test("a stash hero is a named soldier the campaign can keep", () => {
     const w = quiet(seed)
     w.stashAt = 0
     const lead = w.bodies.find((x) => x.kind === "cell_rifle")!
-    lead.x = 22
-    lead.y = 8
-    w.ax = 22
-    w.ay = 8
+    lead.x = w.stashX
+    lead.y = w.stashY
+    w.ax = w.stashX
+    w.ay = w.stashY
     go(w, IDLE, 4.3)
     offered = w.heroOffered
   }
   expect(offered).toBe(true)
+})
+
+test("seeds field different ground, and depth 0 stays off the heavy list", () => {
+  const heavy = new Set([
+    "walker",
+    "kite",
+    "reach",
+    "mast",
+    "dray",
+    "rust_plow",
+    "post",
+    "bloom",
+    "cluster",
+    "fog",
+    "ball",
+    "amalgam",
+  ])
+  const grounds = new Set<string>()
+  const bearings = new Set<number>()
+  let trees = 0
+  let teeth = 0
+  for (let seed = 1; seed <= 24; seed++) {
+    const w = makeRun(seed, [])
+    grounds.add(w.ground)
+    bearings.add(w.bearing)
+    expect(Math.hypot(w.pathX, w.pathY)).toBeCloseTo(30, 4)
+    expect(w.flareX).toBeCloseTo(-w.pathX, 4)
+    expect(w.flareY).toBeCloseTo(-w.pathY, 4)
+    const ang = Math.atan2(w.pathY, w.pathX)
+    const off = Math.abs(-Math.sin(ang) * w.stashX + Math.cos(ang) * w.stashY)
+    expect(off).toBeGreaterThanOrEqual(16)
+    expect(off).toBeLessThanOrEqual(28)
+    expect(["drift", "skirmish"]).toContain(w.pressure)
+    expect(w.weather).toBe(w.skyMain)
+    trees += w.props.filter((p) => p.kind === "burnt_tree").length
+    teeth += w.props.filter((p) => p.kind === "teeth").length
+    w.flareAt = 1e9
+    w.pathAt = 1e9
+    w.stashAt = 1e9
+    const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
+    lead.hp = 1e6
+    lead.damage = 0
+    for (let i = 0; i < 40 * 30; i++) step(w, IDLE, 1 / 30)
+    for (const b of w.bodies) if (b.side !== "player") expect(heavy.has(b.kind)).toBe(false)
+  }
+  expect(grounds.size).toBeGreaterThan(1)
+  expect(bearings.size).toBeGreaterThan(1)
+  expect(trees).toBeGreaterThan(0)
+  expect(teeth).toBeGreaterThan(0)
+
+  const w = makeRun(1, [])
+  w.nextHorde = 1e9
+  w.pathOn = true
+  w.pathX = 0
+  w.pathY = 0
+  go(w, IDLE, PATH_HOLD + 0.2)
+  expect(w.depth).toBe(1)
+  expect(["herd", "coil"]).toContain(w.pressure)
 })
