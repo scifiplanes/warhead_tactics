@@ -16,6 +16,7 @@ const PALS: Record<string, Pal> = {
   killer: { H: "#2a2c2e", S: "#908880", C: "#3a3e40", W: "#0e0e0c", L: "#2a2c2a", B: "#141210" },
   assassin: { H: "#1a1c1e", S: "#807870", C: "#2a2e30", W: "#0e0e0c", L: "#222422", B: "#121210" },
   operator: { H: "#3a4040", S: "#a0a498", C: "#5a6660", W: "#12110e", L: "#3a4440", B: "#1a1814" },
+  jtac: { H: "#3a3832", S: "#a09078", C: "#5a5850", W: "#12110e", L: "#4a4840", B: "#1a1814" },
 }
 
 const ZOMBIE = [
@@ -69,6 +70,7 @@ const GEAR: Record<string, [string[], Pal]> = {
   radio: [["A.......", "A.......", "ARRRRRR.", "RRRRRRRR", "RRRRRRRR", "RRRRkkRR", "RRRRRRRR", "RRRRRRRR"], GRAY],
   nitro: [["..FF....", ".FFF....", "FF..SSSS", "F...SSSS", "FF..SSSS", ".FFF....", "..FF...."], GRAY],
   cas: [["........", "...BB...", "BBBBBBBB", "...BB...", "........"], GRAY],
+  laser: [["...yy...", "..y..y..", ".y....y.", "y..rr..y", ".y....y.", "..y..y..", "...yy..."], { ...GRAY, y: "#c4a060", r: "#6a3030" }],
   nvg: [[".GG..GG.", "G..GG..G", "G.gggg.G", "G.gGGg.G", "G.gggg.G", "G..GG..G", ".GG..GG."], { ...GRAY, G: "#8a8680", g: "#2f6a48" }],
   thermal: [[".HH..HH.", "H..HH..H", "H.hhhh.H", "H.hHHh.H", "H.hhhh.H", "H..HH..H", ".HH..HH."], { ...GRAY, H: "#8a8680", h: "#c4a060" }],
   thermite: [["...TT...", "..TTTT..", ".TTTTTT.", "..TTTT..", "...TT..."], { ...GRAY, T: "#6a5a40" }],
@@ -337,6 +339,35 @@ function gunship() {
   return b
 }
 
+function strafeBird() {
+  const b = cv(18, 9)
+  const g = b.getContext("2d")!
+  rects(g, "#2a2824", [[0, 4, 11, 2]])
+  rects(g, "#4a4840", [[4, 1, 10, 7]])
+  rects(g, "#1a1a18", [[12, 3, 6, 3]])
+  rects(g, "#6a6860", [[6, 0, 6, 1]])
+  return b
+}
+
+function rocketBird() {
+  const b = cv(16, 9)
+  const g = b.getContext("2d")!
+  rects(g, "#3a342c", [[1, 3, 10, 3]])
+  rects(g, "#5a5044", [[4, 1, 8, 7]])
+  rects(g, "#6a3030", [[12, 2, 4, 5]])
+  return b
+}
+
+function bombBird() {
+  const b = cv(18, 10)
+  const g = b.getContext("2d")!
+  rects(g, "#2a2824", [[2, 4, 12, 3]])
+  rects(g, "#3e3c36", [[5, 1, 10, 8]])
+  rects(g, "#1a1a18", [[0, 5, 4, 2]])
+  rects(g, "#5a5850", [[14, 3, 4, 4]])
+  return b
+}
+
 function vtol(frame: number) {
   const b = cv(48, 24)
   const g = b.getContext("2d")!
@@ -391,6 +422,12 @@ function boot() {
   DRONE.forEach((rows, i) => actors.set(`hawk:${i ? "walk" : "idle"}`, paint(rows, { x: "#4a4038", o: "#6a3030" })))
   actors.set("gunboat:idle", gunship())
   actors.set("gunboat:walk", gunship())
+  actors.set("gunship:idle", strafeBird())
+  actors.set("gunship:walk", strafeBird())
+  actors.set("rocket:idle", rocketBird())
+  actors.set("rocket:walk", rocketBird())
+  actors.set("bomber:idle", bombBird())
+  actors.set("bomber:walk", bombBird())
   DRONE.forEach((rows, i) => actors.set(`mid:${i ? "walk" : "idle"}`, paint(rows, { x: "#3a4044", o: "#3ecfc2" })))
   WALKER.forEach((rows, i) => actors.set(`reach:${i ? "walk" : "idle"}`, paint(rows, { X: "#3a4844", x: "#24302c", o: "#5a6a64" })))
   WALKER.forEach((rows, i) => actors.set(`mast:${i ? "walk" : "idle"}`, paint(rows, { X: "#4a5858", x: "#2a3838", o: "#8aa0a0" })))

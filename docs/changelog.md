@@ -2,6 +2,7 @@
 
 Newest first. Older → `docs/changelog-archive.md`.
 
+- **2026-10-20 Feat:** a JTAC tightens CAS and radio, and the gunship, rocket, and bomber leash like the gunboat for a short sortie then leave. A laser paints the next of those strikes. FPV stays separate. `src/content/catalog.ts`
 - **2026-10-19 Feat:** a unit, vehicle, or gear that extracts pays back its deployment cost. `src/sim/world.ts`
 - **2026-10-19 Design:** a wipe banks none of the run's credits. Extract banks the haul and pays 40 more. `src/sim/world.ts`
 - **2026-10-19 Design:** extraction comes in on a large brick-shaped cargo VTOL with ducted fans, not a helicopter. `src/view/sprites.ts`

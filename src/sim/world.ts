@@ -83,6 +83,7 @@ export type Body = {
   air: boolean
   nvg: boolean
   stun: number
+  sortieT: number
   parts: Limb[]
   name: string
   heroId: string
@@ -110,8 +111,20 @@ export type Bolt = { x: number; y: number; vx: number; vy: number; dmg: number; 
 export type Lob = { x: number; y: number; tx: number; ty: number; t: number; T: number; dmg: number; aoe: number; side: Side }
 export type Smoke = { x: number; y: number; r: number; t: number }
 export type Mine = { x: number; y: number; t: number }
-export type Strike = { x: number; y: number; t: number; n: number; next: number }
-export type Pass = { x: number; y: number; hx: number; hy: number; t: number; n: number; next: number; dmg?: number; r?: number }
+export type Strike = { x: number; y: number; t: number; n: number; next: number; dmg?: number }
+export type Pass = {
+  x: number
+  y: number
+  hx: number
+  hy: number
+  t: number
+  n: number
+  next: number
+  dmg?: number
+  r?: number
+  step?: number
+}
+export type AirMark = { x: number; y: number; t: number }
 export type Marsh = { x: number; y: number; r: number }
 export type Weather = "clear" | "rain" | "snow" | "fog" | "dust"
 export type Vision = "off" | "nvg" | "thermal"
@@ -213,6 +226,7 @@ export type World = {
   strikes: Strike[]
   passes: Pass[]
   smokes: Smoke[]
+  airMark: AirMark | null
   marshes: Marsh[]
   stashOn: boolean
   stashX: number
@@ -545,6 +559,7 @@ export function spawnBody(w: World, spec: Spawn): Body {
     air: row?.air ?? host?.air ?? false,
     nvg: row?.nvg ?? false,
     stun: 0,
+    sortieT: 0,
     parts: limbs(base.vehicle),
     name: "",
     heroId: "",
@@ -553,6 +568,7 @@ export function spawnBody(w: World, spec: Spawn): Body {
     b.lob = true
     b.aoe = host.aoe ?? 1.8
   }
+  if (row?.sortie) b.sortieT = row.sortie * (jtacLive(w) ? 1.25 : 1)
   w.bodies.push(b)
   if (host?.pack && spec.pack !== false) {
     for (let i = 1; i < host.pack; i++) {
@@ -680,6 +696,7 @@ function blank(seed: number): World {
     strikes: [],
     passes: [],
     smokes: [],
+    airMark: null,
     marshes: [],
     stashOn: false,
     stashX: 22,
@@ -1566,7 +1583,7 @@ function combat(w: World, dt: number) {
     if ((!ready || b.cool > 0) && !lamp) continue
     const blind = sun(w) < NIGHT && w.vision === "off"
     const span = b.side === "player" ? b.range + 1.2 : b.range
-    const tgt = nearest(w, b, span * sight(w, blind), (o) => o.side !== b.side && o.boarded === null)
+    let tgt = nearest(w, b, span * sight(w, blind), (o) => o.side !== b.side && o.boarded === null)
     if (!tgt) continue
     const lit = blind && (inBeam(w, tgt.x, tgt.y) || inBeam(w, b.x, b.y))
     if (Math.hypot(tgt.x - b.x, tgt.y - b.y) > span * sight(w, lit)) continue
@@ -1579,7 +1596,25 @@ function combat(w: World, dt: number) {
     b.cool = b.cooldown
     b.fired++
     if (b.side === "player") tag(w, b.x, b.y, "FIRE", "fire")
-    const mul = b.gears.includes("filter") ? 1 : WEATHER[w.weather].fire
+    let mul = b.gears.includes("filter") ? 1 : WEATHER[w.weather].fire
+    if (casHull(b) && jtacLive(w)) mul *= 1.25
+    if (casHull(b) && w.airMark && w.airMark.t > 0) {
+      const mx = w.airMark.x
+      const my = w.airMark.y
+      let marked: Body | null = null
+      let bestD = span * sight(w, lit)
+      for (const o of w.bodies) {
+        if (!o.alive || o.side === b.side || o.boarded !== null) continue
+        const d = Math.hypot(o.x - mx, o.y - my)
+        if (d < bestD) {
+          bestD = d
+          marked = o
+        }
+      }
+      if (marked) tgt = marked
+      mul *= 1.2
+      w.airMark = null
+    }
     if (b.side !== "player" && b.range > 2) {
       const dx = tgt.x - b.x
       const dy = tgt.y - b.y
@@ -1851,28 +1886,66 @@ function ability(w: World, cmd: Commands) {
     toast(w, id === "ewar" ? "EWAR" : "Stun", "gear")
     return
   }
+  if (id === "laser") {
+    const best = crowd(w, 14)
+    if (!best) {
+      toast(w, "No target", "gear")
+      return
+    }
+    spendFamily(w, slot)
+    w.airMark = { x: best.x, y: best.y, t: 12 }
+    toast(w, "Laser on", "gear")
+    return
+  }
   if (id === "frag" || id === "radio" || id === "cas" || id === "fpv") {
     const best = crowd(w, 14)
     if (!best) {
       toast(w, "No target", "gear")
       return
     }
-    spend(slot)
-    if (id === "frag") blast(w, best.x, best.y, 3.2, 28)
-    else if (id === "radio") {
-      w.strikes.push({ x: best.x, y: best.y, t: 0.6, n: 6, next: 0 })
-      toast(w, "Artillery inbound", "gear")
-    } else if (id === "fpv") {
+    if (id === "frag") {
+      spend(slot)
+      blast(w, best.x, best.y, 3.2, 28)
+      return
+    }
+    if (id === "fpv") {
+      spend(slot)
       const dx = best.x - w.ax
       const dy = best.y - w.ay
       const d = Math.hypot(dx, dy) || 1
       w.passes.push({ x: best.x, y: best.y, hx: dx / d, hy: dy / d, t: 0.45, n: 1, next: 0, dmg: 42, r: 2.2 })
       toast(w, "FPV", "gear")
+      return
+    }
+    let x = best.x
+    let y = best.y
+    let markMul = 1
+    if (w.airMark && w.airMark.t > 0) {
+      x = w.airMark.x
+      y = w.airMark.y
+      markMul = 1.2
+      w.airMark = null
+    }
+    const hot = jtacLive(w)
+    spendFamily(w, slot)
+    if (id === "radio") {
+      w.strikes.push({ x, y, t: 0.6, n: 6, next: 0, dmg: (hot ? 28 : 22) * markMul })
+      toast(w, "Artillery inbound", "gear")
     } else {
-      const dx = best.x - w.ax
-      const dy = best.y - w.ay
+      const dx = x - w.ax
+      const dy = y - w.ay
       const d = Math.hypot(dx, dy) || 1
-      w.passes.push({ x: best.x, y: best.y, hx: dx / d, hy: dy / d, t: 1.2, n: 7, next: 0 })
+      w.passes.push({
+        x,
+        y,
+        hx: dx / d,
+        hy: dy / d,
+        t: 1.2,
+        n: 7,
+        next: 0,
+        dmg: 24 * (hot ? 1.25 : 1) * markMul,
+        step: hot ? 1.2 : 1.6,
+      })
       toast(w, "CAS inbound", "gear")
     }
     return
@@ -1968,6 +2041,27 @@ function pickFit(w: World, c: ReturnType<typeof card>): Body | null {
 function spend(slot: Slot) {
   if (slot.cdMax > 0) slot.cd = slot.cdMax
   else slot.charges--
+}
+
+function spendFamily(w: World, slot: Slot) {
+  spend(slot)
+  if (slot.cdMax > 0 && jtacLive(w)) slot.cd = slot.cdMax * 0.7
+}
+
+function jtacLive(w: World) {
+  return w.bodies.some((b) => b.alive && b.inSection && b.kind === "jtac")
+}
+
+function casHull(b: Body) {
+  return b.kind === "gunship" || b.kind === "rocket" || b.kind === "bomber"
+}
+
+function leaveSortie(w: World, b: Body) {
+  if (!b.alive) return
+  b.alive = false
+  b.hp = 0
+  b.sortieT = 0
+  toast(w, `${card(b.kind).name} away`, "veh")
 }
 
 function crowd(w: World, reach: number): Body | null {
@@ -2225,7 +2319,7 @@ function strikes(w: World, dt: number) {
       s.next = 0.18
       const a = w.rng() * Math.PI * 2
       const r = Math.sqrt(w.rng()) * 2.4
-      blast(w, s.x + Math.cos(a) * r, s.y + Math.sin(a) * r, 2.2, 22)
+      blast(w, s.x + Math.cos(a) * r, s.y + Math.sin(a) * r, 2.2, s.dmg ?? 22)
     }
     if (s.n > 0) live.push(s)
   }
@@ -2245,8 +2339,9 @@ function passes(w: World, dt: number) {
       s.n--
       s.next = 0.14
       blast(w, s.x, s.y, s.r ?? 1.5, s.dmg ?? 24)
-      s.x += s.hx * 1.6
-      s.y += s.hy * 1.6
+      const step = s.step ?? 1.6
+      s.x += s.hx * step
+      s.y += s.hy * step
     }
     if (s.n > 0) live.push(s)
   }
@@ -2288,6 +2383,14 @@ function ages(w: World, dt: number) {
       b.life -= dt
       if (b.life <= 0) kill(w, b)
     }
+    if (b.alive && b.sortieT > 0) {
+      b.sortieT -= dt
+      if (b.sortieT <= 0) leaveSortie(w, b)
+    }
+  }
+  if (w.airMark) {
+    w.airMark.t -= dt
+    if (w.airMark.t <= 0) w.airMark = null
   }
   for (const s of w.smokes) s.t -= dt
   w.smokes = w.smokes.filter((s) => s.t > 0)

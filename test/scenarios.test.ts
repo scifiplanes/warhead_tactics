@@ -76,7 +76,7 @@ test("dropped unit dies if the player never arrives", () => {
 
 test("a drop lands with a gun", () => {
   const w = quiet()
-  for (const id of ["cell_rifle", "medic", "engr", "relay", "operator", "truck", "hawk", "drill", "aegis"]) {
+  for (const id of ["cell_rifle", "medic", "engr", "relay", "operator", "jtac", "truck", "hawk", "drill", "aegis"]) {
     placeDrop(w, id, 0, 0)
   }
   for (const b of w.bodies.filter((b) => !b.inSection)) {
@@ -1002,6 +1002,98 @@ test("CAS strafes along the crowd", () => {
   expect(flank.hp).toBe(80)
 })
 
+test("JTAC, timed CAS airframes, laser, and FPV stay separate", () => {
+  for (const id of ["jtac", "gunship", "rocket", "bomber", "laser"]) {
+    expect(card(id).deck).toBe(true)
+    expect(priceOf(id)).toBeGreaterThan(0)
+  }
+  expect(card("gunship").sortie).toBe(24)
+  expect(card("rocket").sortie).toBe(20)
+  expect(card("bomber").sortie).toBe(18)
+  expect(card("rocket").lob).toBe(true)
+  expect(card("gunboat").sortie).toBeUndefined()
+
+  const birds = quiet()
+  birds.bodies.find((b) => b.kind === "cell_rifle")!.damage = 0
+  const ship = spawnBody(birds, { kind: "gunship", x: 1, y: 0, inSection: true })
+  const pod = spawnBody(birds, { kind: "rocket", x: 1.2, y: 0.2, inSection: true })
+  const bomb = spawnBody(birds, { kind: "bomber", x: 1.4, y: -0.2, inSection: true })
+  const boat = spawnBody(birds, { kind: "gunboat", x: 1.6, y: 0, inSection: true })
+  expect(ship.follow).toBe(true)
+  expect(ship.air).toBe(true)
+  expect(ship.seats).toBe(0)
+  expect(ship.sortieT).toBe(24)
+  expect(pod.lob).toBe(true)
+  expect(bomb.sortieT).toBe(18)
+  expect(boat.sortieT).toBe(0)
+  spawnBody(birds, { kind: "shambler", x: 5, y: 0, hp: 200, damage: 0, speed: 0 })
+  go(birds, IDLE, 1.2)
+  expect(ship.fired + pod.fired + bomb.fired).toBeGreaterThan(0)
+  go(birds, IDLE, 25)
+  expect(ship.alive).toBe(false)
+  expect(pod.alive).toBe(false)
+  expect(bomb.alive).toBe(false)
+  expect(boat.alive).toBe(true)
+  expect(birds.lost).toBe(0)
+
+  const long = quiet()
+  long.bodies.find((b) => b.kind === "cell_rifle")!.damage = 0
+  spawnBody(long, { kind: "jtac", x: 0.4, y: 0, inSection: true })
+  const hot = spawnBody(long, { kind: "gunship", x: 1, y: 0, inSection: true })
+  expect(hot.sortieT).toBeCloseTo(30, 5)
+
+  const cold = quiet()
+  cold.bodies.find((b) => b.kind === "cell_rifle")!.damage = 0
+  const line = spawnBody(cold, { kind: "shambler", x: 6, y: 0, hp: 200, damage: 0, speed: 0 })
+  cold.toolbar.push({ id: "cas", charges: 0, cd: 0, cdMax: 50 })
+  step(cold, { ...IDLE, ability: 0 }, 1 / 30)
+  expect(cold.toolbar[0].cd).toBe(50)
+  go(cold, IDLE, 2.5)
+  const coldHp = line.hp
+
+  const warm = quiet()
+  warm.bodies.find((b) => b.kind === "cell_rifle")!.damage = 0
+  spawnBody(warm, { kind: "jtac", x: 0.3, y: 0, inSection: true })
+  const mark = spawnBody(warm, { kind: "shambler", x: 6, y: 0, hp: 200, damage: 0, speed: 0 })
+  warm.toolbar.push({ id: "cas", charges: 0, cd: 0, cdMax: 50 })
+  step(warm, { ...IDLE, ability: 0 }, 1 / 30)
+  expect(warm.toolbar[0].cd).toBeCloseTo(35, 5)
+  go(warm, IDLE, 2.5)
+  expect(mark.hp).toBeLessThan(coldHp)
+
+  const paint = quiet()
+  paint.bodies.find((b) => b.kind === "cell_rifle")!.damage = 0
+  const painted = spawnBody(paint, { kind: "shambler", x: 0, y: 8, hp: 120, damage: 0, speed: 0 })
+  const other = spawnBody(paint, { kind: "shambler", x: 8, y: 0, hp: 120, damage: 0, speed: 0 })
+  paint.toolbar.push({ id: "laser", charges: 0, cd: 0, cdMax: 18 }, { id: "cas", charges: 0, cd: 0, cdMax: 50 })
+  step(paint, { ...IDLE, ability: 0 }, 1 / 30)
+  expect(paint.airMark).not.toBeNull()
+  expect(paint.airMark!.y).toBeCloseTo(painted.y, 0)
+  step(paint, { ...IDLE, ability: 1 }, 1 / 30)
+  expect(paint.airMark).toBeNull()
+  expect(paint.passes[0].y).toBeCloseTo(painted.y, 0)
+  go(paint, IDLE, 2.5)
+  expect(painted.hp).toBeLessThan(other.hp)
+
+  const fpvCold = quiet()
+  fpvCold.bodies.find((b) => b.kind === "cell_rifle")!.damage = 0
+  const a = spawnBody(fpvCold, { kind: "shambler", x: 6, y: 0, hp: 80, damage: 0, speed: 0 })
+  fpvCold.toolbar.push({ id: "fpv", charges: 1, cd: 0, cdMax: 0 })
+  step(fpvCold, { ...IDLE, ability: 0 }, 1 / 30)
+  go(fpvCold, IDLE, 0.8)
+  const fpvHp = a.hp
+
+  const fpvHot = quiet()
+  fpvHot.bodies.find((b) => b.kind === "cell_rifle")!.damage = 0
+  spawnBody(fpvHot, { kind: "jtac", x: 0.3, y: 0, inSection: true })
+  const b = spawnBody(fpvHot, { kind: "shambler", x: 6, y: 0, hp: 80, damage: 0, speed: 0 })
+  fpvHot.toolbar.push({ id: "fpv", charges: 1, cd: 0, cdMax: 0 })
+  step(fpvHot, { ...IDLE, ability: 0 }, 1 / 30)
+  expect(fpvHot.passes[0].dmg).toBe(42)
+  go(fpvHot, IDLE, 0.8)
+  expect(b.hp).toBe(fpvHp)
+})
+
 test("goathead shoots and crowhead gnats land on the squad", () => {
   const guns = quiet()
   const cell = guns.bodies.find((b) => b.kind === "cell_rifle")!
@@ -1271,7 +1363,8 @@ test("the rest of the roster is gear, hulls, and rust", () => {
   const ids = [
     "knife", "kukri", "katana", "machete", "sword", "axe", "stave", "baton", "bow", "warbow",
     "at", "jetpack", "litter", "filter", "ewar", "truck", "tech", "suv", "steed", "cart", "mule",
-    "gunboat", "mlrs", "ifv", "mbt", "ugv", "tube", "drill", "pump", "cutter", "hawk", "mid", "assassin", "operator",
+    "gunboat", "gunship", "rocket", "bomber", "mlrs", "ifv", "mbt", "ugv", "tube", "drill", "pump", "cutter",
+    "hawk", "mid", "assassin", "operator", "jtac", "laser",
   ]
   for (const id of ids) {
     expect(card(id).deck).toBe(true)

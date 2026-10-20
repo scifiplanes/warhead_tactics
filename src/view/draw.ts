@@ -335,6 +335,14 @@ export function draw(
     g.fill()
   }
 
+  if (w.airMark && w.airMark.t > 0) {
+    const mx = X(w.airMark.x)
+    const my = Y(w.airMark.y)
+    g.fillStyle = "#c4a060"
+    g.fillRect(mx - 1, my - 4, 2, 8)
+    g.fillRect(mx - 4, my - 1, 8, 2)
+  }
+
 
   for (const p of parts) {
     p.life -= dt

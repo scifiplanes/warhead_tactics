@@ -48,6 +48,7 @@ export type CardDef = {
   follow?: boolean
   air?: boolean
   nvg?: boolean
+  sortie?: number
   gun?: Gun
   stats?: Stats
 }
@@ -607,6 +608,17 @@ export const CARDS: CardDef[] = [
     cd: 50,
   },
   {
+    id: "laser",
+    name: "LASER",
+    kind: "gear",
+    deck: true,
+    max: 1,
+    desc: "Paints a crowd. The next air strike lands there harder.",
+    fits: "section",
+    ability: "laser",
+    cd: 18,
+  },
+  {
     id: "nvg",
     name: "NVG",
     kind: "gear",
@@ -750,6 +762,27 @@ export const CARDS: CardDef[] = [
     { follow: true, air: true },
   ),
   rig(
+    "gunship",
+    "GUNSHIP",
+    "Unmanned strafe bird. Leashed for a short sortie.",
+    hull({ hp: 90, speed: 7, range: 14, damage: 6, cooldown: 0.2, seats: 0, armor: 0.22, radius: 0.6, mobileFire: true }),
+    { follow: true, air: true, sortie: 24 },
+  ),
+  rig(
+    "rocket",
+    "ROCKET",
+    "Unmanned rocket craft. Leashed for a short sortie.",
+    hull({ hp: 80, speed: 7.5, range: 12, damage: 14, cooldown: 1.1, seats: 0, armor: 0.18, radius: 0.55, mobileFire: true }),
+    { follow: true, air: true, lob: true, aoe: 2.4, sortie: 20 },
+  ),
+  rig(
+    "bomber",
+    "BOMBER",
+    "Unmanned bomb bird. Leashed for a short sortie.",
+    hull({ hp: 100, speed: 6, range: 11, damage: 28, cooldown: 2.2, seats: 0, armor: 0.25, radius: 0.65, mobileFire: true }),
+    { follow: true, air: true, sortie: 18 },
+  ),
+  rig(
     "mlrs",
     "MLRS",
     "A slow salvo.",
@@ -784,6 +817,7 @@ export const CARDS: CardDef[] = [
   man("mid", "MID", "A spotter in the air. Follows the Lead. Lands with a light gun.", foot({ hp: 20, speed: 10, range: 0, damage: 0, mobileFire: true, deployNeed: 0, radius: 0.32 }), { follow: true, air: true, spot: 3 }),
   man("assassin", "ASSASSIN", "A leashed blade. Follows the Lead.", foot({ hp: 40, speed: 8, range: 1.5, damage: 11, cooldown: 0.4, mobileFire: true, deployNeed: 0, armor: 0.06 }), { follow: true }),
   man("operator", "OPERATOR", "Jams Rust while this body lives. Lands with a rifle.", foot({ hp: 36, speed: 6.2, range: 0, damage: 0, mobileFire: true, deployNeed: 0, armor: 0.08 }), { spot: 1 }),
+  man("jtac", "JTAC", "Tightens air support while this body lives. Lands with a rifle.", foot({ hp: 36, speed: 6.2, range: 0, damage: 0, mobileFire: true, deployNeed: 0, armor: 0.08 }), { spot: 2 }),
   {
     id: "sentry_gun",
     name: "SENTRY",
@@ -1147,6 +1181,7 @@ const PRICE: Record<string, number> = {
   kit: 25,
   radio: 35,
   cas: 40,
+  laser: 30,
   nvg: 20,
   thermal: 25,
   nitro: 25,
@@ -1175,6 +1210,9 @@ const PRICE: Record<string, number> = {
   cart: 40,
   mule: 50,
   gunboat: 130,
+  gunship: 120,
+  rocket: 110,
+  bomber: 130,
   mlrs: 140,
   ifv: 150,
   mbt: 180,
@@ -1187,6 +1225,7 @@ const PRICE: Record<string, number> = {
   mid: 50,
   assassin: 60,
   operator: 45,
+  jtac: 50,
 }
 
 export function priceOf(id: string) {
