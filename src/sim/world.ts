@@ -45,6 +45,7 @@ export type Body = {
   damage: number
   cooldown: number
   cool: number
+  sideCool: number
   mobileFire: boolean
   deployNeed: number
   deploy: number
@@ -106,9 +107,9 @@ export type Gib = {
 }
 
 export type Slot = { id: string; charges: number; cd: number; cdMax: number }
-export type Shot = { x: number; y: number; tx: number; ty: number; life: number }
+export type Shot = { x: number; y: number; tx: number; ty: number; life: number; lift: number }
 export type Bolt = { x: number; y: number; vx: number; vy: number; dmg: number; life: number; side: Side }
-export type Lob = { x: number; y: number; tx: number; ty: number; t: number; T: number; dmg: number; aoe: number; side: Side }
+export type Lob = { x: number; y: number; tx: number; ty: number; t: number; T: number; dmg: number; aoe: number; side: Side; lift: number }
 export type Smoke = { x: number; y: number; r: number; t: number }
 export type Mine = { x: number; y: number; t: number }
 export type Strike = { x: number; y: number; t: number; n: number; next: number; dmg?: number }
@@ -149,6 +150,7 @@ export type Drop = {
   kind: "unit" | "vehicle" | "gear" | "loot"
   taken: boolean
   cost: number
+  skin?: "crate" | "item"
 }
 
 export type Inbound = { x: number; y: number; t: number; cardId: string; loot: boolean; cost: number }
@@ -242,6 +244,7 @@ export type World = {
   diffHp: number
   credits: number
   found: string[]
+  unlocked: string[]
   hidden: string[]
   loot: number
   nextField: number
@@ -282,7 +285,7 @@ const BOARD_RANGE = 1.7
 const JOIN_DELAY = 1.1
 const AUTO_EVERY = 0.6
 export const CRAFT_WAIT = 18
-export const DAY = 180
+export const DAY = 240
 
 export function daylight(t: number) {
   return 0.5 + 0.5 * Math.cos((t / DAY) * Math.PI * 2)
@@ -309,8 +312,8 @@ const BANDS = [
 ]
 const APEX = ["reach", "mast", "dray", "rust_plow", "post", "bloom", "cluster", "fog", "ball", "amalgam"]
 const ESCORT = ["walker", "roller", "slab", "drone", "coil", "flake"]
-// ponytail: offset 180 is a full day and matches 0, so the fourth opening is midnight
-const DAY_OFF = [0, 60, 120, 90]
+// ponytail: offset DAY matches 0; DAY/2 is midnight
+const DAY_OFF = [0, DAY / 3, (2 * DAY) / 3, DAY / 2]
 const PROP_W: Record<Ground, [Prop["kind"], number][]> = {
   open: [
     ["wreck", 45],
@@ -424,7 +427,10 @@ const HORDE_EVERY = 2.4
 const HOSTILE_CAP = 36
 const RAM = 36
 const RAM_SELF = 7
-const PROP_HIT = 12
+const PROP_HIT = 3
+const PROP_BUMP = 0.85
+/** Short-range hits scrape steel; soft skins still take most of it. */
+const meleeHull = (armor: number) => Math.max(0.25, 0.9 - armor)
 const CELL = 8
 export const GAP_MAX = 5
 const GAP_RATE = 2.4
@@ -446,8 +452,9 @@ export function makeRun(seed: number, deck: string[], opts: RunOpts = {}): World
   w.deck = paired.map((row) => row.id)
   w.deckQueue = w.deck.slice()
   w.deckPay = paired.map((row) => row.cost)
-  w.found = (opts.known ?? []).slice()
-  w.hidden = (opts.hidden ?? []).filter((id) => !w.found.includes(id))
+  w.unlocked = (opts.known ?? []).slice()
+  w.found = []
+  w.hidden = (opts.hidden ?? []).filter((id) => !w.unlocked.includes(id))
   w.heroes = {}
   for (const hero of opts.heroes ?? []) w.heroes[hero.id] = hero
   w.veteranIds = (opts.heroes ?? []).map((hero) => hero.id)
@@ -459,7 +466,7 @@ export function makeRun(seed: number, deck: string[], opts: RunOpts = {}): World
   w.stashAt = 22
   w.commander = spawnBody(w, { kind: STARTER, x: 0, y: 0, inSection: true }).id
   const lead = w.bodies.find((b) => b.id === w.commander)
-  if (lead) fitGun(lead, "rifle")
+  if (lead) fitGun(w, lead, "rifle")
   labels(w)
   grantThermal(w)
   grantNvg(w)
@@ -521,6 +528,7 @@ export function spawnBody(w: World, spec: Spawn): Body {
     damage: spec.damage ?? base.damage,
     cooldown: spec.cooldown ?? base.cooldown,
     cool: 0,
+    sideCool: 0,
     mobileFire: base.mobileFire,
     deployNeed: base.deployNeed,
     deploy: 0,
@@ -560,7 +568,7 @@ export function spawnBody(w: World, spec: Spawn): Body {
     nvg: row?.nvg ?? false,
     stun: 0,
     sortieT: 0,
-    parts: limbs(base.vehicle),
+    parts: limbs(base.vehicle, row?.air ?? host?.air ?? false),
     name: "",
     heroId: "",
   }
@@ -583,8 +591,8 @@ export function placeDrop(w: World, cardId: string, x: number, y: number, cost =
   const hero = w.heroes[cardId]
   if (hero) {
     const body = spawnBody(w, { kind: hero.chassis, x, y, inSection: false })
-    arm(body)
-    fitGun(body, hero.gun)
+    arm(w, body)
+    fitGun(w, body, hero.gun)
     grantGift(body, hero.gift)
     body.name = hero.name
     body.heroId = hero.id
@@ -598,6 +606,7 @@ export function placeDrop(w: World, cardId: string, x: number, y: number, cost =
       kind: "unit",
       taken: false,
       cost,
+      skin: "crate",
     }
     w.drops.push(drop)
     return drop
@@ -612,10 +621,11 @@ export function placeDrop(w: World, cardId: string, x: number, y: number, cost =
     kind: c.kind,
     taken: false,
     cost,
+    skin: c.kind === "gear" ? "crate" : undefined,
   }
   if (c.kind === "unit" || c.kind === "vehicle") {
     const body = spawnBody(w, { kind: cardId, x, y, inSection: false })
-    arm(body)
+    arm(w, body)
     body.cost = cost
     drop.bodyId = body.id
   }
@@ -710,6 +720,7 @@ function blank(seed: number): World {
     kills: 0,
     credits: 0,
     found: [],
+    unlocked: [],
     hidden: [],
     loot: 0,
     nextField: 9,
@@ -752,6 +763,7 @@ function tick(w: World, cmd: Commands, dt: number) {
   heals(w, dt)
   gibs(w, dt)
   ages(w, dt)
+  reap(w)
   bounties(w)
   cull(w)
   flare(w, cmd, dt)
@@ -946,7 +958,7 @@ function drive(w: World, cmd: Commands, dt: number) {
     w.ax = clamp(w.ax + nx * pace * dt, -MAP, MAP)
     w.ay = clamp(w.ay + ny * pace * dt, -MAP, MAP)
   }
-  if (boss && !hull) {
+  if (boss && !hull && !boss.air) {
     const lx = w.ax - boss.x
     const ly = w.ay - boss.y
     const ld = Math.hypot(lx, ly)
@@ -957,7 +969,7 @@ function drive(w: World, cmd: Commands, dt: number) {
   }
 
   const loose = feet(w)
-  if (boss?.follow && !hull && !loose.includes(boss)) loose.unshift(boss)
+  if (boss?.follow && !boss.air && !hull && !loose.includes(boss)) loose.unshift(boss)
   const open = Math.max(0, Math.min(1, w.gap / GAP_MAX))
   const radius = 1.15 + 6.8 * open
   const core = hull ?? boss
@@ -1134,9 +1146,10 @@ function slide(w: World, v: Body, dx: number, dy: number): boolean {
     }
     return true
   }
-  if (v.touch !== prop.id && Math.abs(v.vel) > 1.2) {
-    hurt(w, v, PROP_HIT, "dust")
-    v.bumpCd = 0.45
+  if (v.bumpCd <= 0 && v.touch !== prop.id && Math.abs(v.vel) > 1.2) {
+    const scrape = PROP_HIT * clamp(Math.abs(v.vel) / 8, 0.35, 1)
+    hurt(w, v, scrape, "dust")
+    v.bumpCd = PROP_BUMP
     if (v.heavy) {
       prop.alive = false
       prop.hp = 0
@@ -1309,7 +1322,7 @@ function pickup(w: World) {
       d.taken = true
       if (d.cardId === "relic") {
         const id = w.hidden.shift()
-        if (id && !w.found.includes(id)) {
+        if (id && !w.found.includes(id) && !w.unlocked.includes(id)) {
           w.found.push(id)
           tag(w, d.x, d.y, "FIND", "find")
           toast(w, `${card(id).name} found`, "unit")
@@ -1392,7 +1405,7 @@ export function offerHero(w: World): Hero | null {
   return hero
 }
 
-function arm(b: Body) {
+function arm(w: World, b: Body) {
   if (b.damage > 0 && b.range > 0) return
   if (b.vehicle || b.follow || b.air) {
     b.range = 8
@@ -1402,50 +1415,183 @@ function arm(b: Body) {
     b.deployNeed = 0
     return
   }
-  fitGun(b, "rifle")
+  fitGun(w, b, "rifle")
 }
 
 function soldier(b: Body) {
   return b.alive && b.inSection && b.side === "player" && !b.vehicle && !b.android && !b.follow
 }
 
-function fitGun(b: Body, id: string, cost = 0) {
+function handOf(id: string): "primary" | "secondary" {
+  return card(id).hand === "secondary" ? "secondary" : "primary"
+}
+
+function primaryId(b: Body) {
+  return b.gears.find((have) => card(have).gun && handOf(have) === "primary")
+}
+
+function secondaryId(b: Body) {
+  return b.gears.find((have) => card(have).gun && handOf(have) === "secondary")
+}
+
+function gunId(b: Body) {
+  return primaryId(b) ?? secondaryId(b)
+}
+
+function attachIds(b: Body) {
+  return b.gears.filter((have) => card(have).slot)
+}
+
+function isBladeGun(id: string) {
+  const g = card(id).gun
+  return !!g && g.range <= 2 && !g.lob
+}
+
+function canTakeAttach(b: Body) {
+  const id = primaryId(b)
+  return !!id && !isBladeGun(id)
+}
+
+type Wield = {
+  range: number
+  damage: number
+  cooldown: number
+  mobileFire: boolean
+  deployNeed: number
+  lob: boolean
+  aoe: number
+  pierce: number
+}
+
+function wieldOf(b: Body, id: string): Wield {
+  const g = card(id).gun!
+  let range = g.range
+  let damage = g.damage
+  let cooldown = g.cooldown
+  let mobileFire = g.mobileFire
+  let deployNeed = g.deployNeed
+  let lob = !!g.lob
+  let aoe = g.aoe ?? 0
+  let pierce = g.pierce ?? 0
+  if (handOf(id) === "primary") {
+    for (const have of attachIds(b)) {
+      const fit = card(have)
+      if (fit.rangeMul) range *= fit.rangeMul
+      if (fit.rateMul) cooldown *= fit.rateMul
+      if (fit.deployMul && deployNeed > 0) deployNeed *= fit.deployMul
+      if (fit.pierce) pierce += fit.pierce
+    }
+  }
+  return { range, damage, cooldown, mobileFire, deployNeed, lob, aoe, pierce }
+}
+
+function wieldReady(b: Body, w: Wield, side: boolean) {
+  if ((side ? b.sideCool : b.cool) > 0) return false
+  if (w.mobileFire || w.deployNeed <= 0) return true
+  return b.deploy >= w.deployNeed
+}
+
+function wieldReach(b: Body, tgt: Body, w: Wield, sightMul: number) {
+  const dist = Math.hypot(tgt.x - b.x, tgt.y - b.y)
+  const melee = w.range <= 2 && !w.lob
+  if (melee) {
+    if (tgt.vehicle) return dist <= b.radius + tgt.radius + 0.2
+    return dist - tgt.radius <= w.range + 0.25
+  }
+  const span = (b.side === "player" ? w.range + 1.2 : w.range) * sightMul
+  return dist <= span
+}
+
+function shedAttach(w: World, b: Body, id: string) {
+  const cost = b.gearPay[id] ?? 0
+  delete b.gearPay[id]
+  b.gears = b.gears.filter((have) => have !== id)
+  const n = w.drops.filter((d) => !d.taken && d.skin === "item").length
+  const a = n * 1.7
+  const r = PICKUP + 0.4
+  w.drops.push({
+    id: w.nextId++,
+    cardId: id,
+    x: b.x + Math.cos(a) * r,
+    y: b.y + Math.sin(a) * r,
+    bodyId: -1,
+    kind: "gear",
+    taken: false,
+    cost,
+    skin: "item",
+  })
+}
+
+function reapplyGun(b: Body) {
+  const id = primaryId(b) ?? secondaryId(b)
+  if (!id) return
+  const w = wieldOf(b, id)
+  b.range = w.range
+  b.damage = w.damage
+  b.cooldown = w.cooldown
+  b.mobileFire = w.mobileFire
+  b.deployNeed = w.deployNeed
+  b.lob = w.lob
+  b.aoe = w.aoe
+  b.pierce = w.pierce
+}
+
+function fitGun(w: World, b: Body, id: string, cost = 0) {
   const c = card(id)
   const g = c.gun
   if (!g) return
-  const prev = b.gears.find((have) => card(have).gun)
+  const hand = handOf(id)
+  const prev = hand === "primary" ? primaryId(b) : secondaryId(b)
   const old = prev ? card(prev) : undefined
   if (old?.digAdd) b.dig = Math.max(0, b.dig - old.digAdd)
-  for (const have of b.gears) if (card(have).gun) delete b.gearPay[have]
-  b.gears = b.gears.filter((have) => !card(have).gun)
+  if (prev) {
+    delete b.gearPay[prev]
+    b.gears = b.gears.filter((have) => have !== prev)
+  }
+  if (hand === "primary") {
+    const shed = attachIds(b)
+    const shedPay = Object.fromEntries(shed.map((have) => [have, b.gearPay[have] ?? 0]))
+    for (const have of shed) delete b.gearPay[have]
+    b.gears = b.gears.filter((have) => !card(have).slot)
+    b.gears.push(id)
+    if (cost > 0) b.gearPay[id] = cost
+    b.deploy = 0
+    if (c.digAdd) b.dig += c.digAdd
+    reapplyGun(b)
+    for (const have of shed) {
+      b.gearPay[have] = shedPay[have] ?? 0
+      shedAttach(w, b, have)
+    }
+    return
+  }
   b.gears.push(id)
   if (cost > 0) b.gearPay[id] = cost
-  b.range = g.range
-  b.damage = g.damage
-  b.cooldown = g.cooldown
-  b.mobileFire = g.mobileFire
-  b.deployNeed = g.deployNeed
-  b.deploy = 0
-  b.lob = !!g.lob
-  b.aoe = g.aoe ?? 0
-    b.pierce = g.pierce ?? 0
-    if (c.digAdd) b.dig += c.digAdd
-    for (const have of b.gears) {
-    const fit = card(have)
-    if (fit.gun) continue
-    if (fit.rangeMul) b.range *= fit.rangeMul
-    if (fit.rateMul) b.cooldown *= fit.rateMul
-    if (fit.deployMul && b.deployNeed > 0) b.deployNeed *= fit.deployMul
-  }
+  if (c.digAdd) b.dig += c.digAdd
+  if (!primaryId(b)) b.deploy = 0
+  reapplyGun(b)
 }
 
 function equip(w: World, id: string, cost = 0): boolean {
   const c = card(id)
   if (c.gun) {
-    const bare = w.bodies.find((b) => soldier(b) && !b.gears.some((g) => card(g).gun))
+    const hand = handOf(id)
+    const bare = w.bodies.find(
+      (b) => soldier(b) && !(hand === "primary" ? primaryId(b) : secondaryId(b)),
+    )
     const target = bare ?? w.bodies.find((b) => soldier(b))
     if (!target) return false
-    fitGun(target, id, cost)
+    fitGun(w, target, id, cost)
+    toast(w, `${c.name} fitted`, "gear")
+    return true
+  }
+  if (c.slot) {
+    const target = pickAttach(w, c)
+    if (!target) return false
+    const prior = target.gears.find((have) => card(have).slot === c.slot)
+    if (prior) shedAttach(w, target, prior)
+    target.gears.push(id)
+    if (cost > 0) target.gearPay[id] = cost
+    reapplyGun(target)
     toast(w, `${c.name} fitted`, "gear")
     return true
   }
@@ -1455,15 +1601,12 @@ function equip(w: World, id: string, cost = 0): boolean {
     target.gears.push(id)
     if (cost > 0) target.gearPay[id] = cost
     if (c.armorAdd) target.armor = Math.min(0.75, target.armor + c.armorAdd)
-    if (c.rangeMul) target.range *= c.rangeMul
-    if (c.rateMul) target.cooldown *= c.rateMul
     if (c.speedMul) target.speed *= c.speedMul
     if (c.hpMul) {
       const gain = target.maxHp * (c.hpMul - 1)
       target.maxHp = Math.round(target.maxHp * c.hpMul)
       target.hp = Math.min(target.maxHp, target.hp + gain)
     }
-    if (c.deployMul && target.deployNeed > 0) target.deployNeed *= c.deployMul
     if (c.ramMul) target.ramMul *= c.ramMul
     if (c.ramSelfMul) target.ramSelf *= c.ramSelfMul
     if (c.healAdd) target.heal += c.healAdd
@@ -1558,7 +1701,8 @@ function ai(w: World, dt: number) {
     const dx = tgt.x - b.x
     const dy = tgt.y - b.y
     const d = Math.hypot(dx, dy) || 1
-    const want = Math.max(0.2, b.range * 0.85)
+    const want =
+      b.range <= 2 ? Math.max(0.35, b.radius + tgt.radius - 0.1) : Math.max(0.2, b.range * 0.85)
     if (d <= want) continue
     const m = Math.min(limbSpeed(b) * bog(w, false, "", b.x, b.y, b) * dt, d - want)
     b.x = clamp(b.x + (dx / d) * m, -MAP, MAP)
@@ -1572,90 +1716,162 @@ function combat(w: World, dt: number) {
   for (const b of w.bodies) {
     if (!b.alive || b.boarded !== null || b.stun > 0) continue
     if (w.reveals.some((r) => r.bodyId === b.id)) continue
+    b.cool -= dt
+    b.sideCool -= dt
+    const pri = primaryId(b)
+    const sec = secondaryId(b)
+    if (pri || sec) {
+      combatHands(w, b, dt, pri, sec)
+      continue
+    }
     if (!b.mobileFire) {
       if (b.moved) b.deploy = 0
       else b.deploy = Math.min(b.deployNeed, b.deploy + dt)
     }
-    b.cool -= dt
     const ready = b.mobileFire || (b.deployNeed > 0 && b.deploy >= b.deployNeed) || b.deployNeed === 0
     const lamp = b.side === "player" && !b.android && !b.vehicle
     if (b.damage <= 0 || b.range <= 0 || !canFire(b)) continue
     if ((!ready || b.cool > 0) && !lamp) continue
     const blind = sun(w) < NIGHT && w.vision === "off"
-    const span = b.side === "player" ? b.range + 1.2 : b.range
+    const melee = b.range <= 2 && !b.lob
+    const span = melee ? b.range + 0.8 : b.side === "player" ? b.range + 1.2 : b.range
     let tgt = nearest(w, b, span * sight(w, blind), (o) => o.side !== b.side && o.boarded === null)
     if (!tgt) continue
     const lit = blind && (inBeam(w, tgt.x, tgt.y) || inBeam(w, b.x, b.y))
-    if (Math.hypot(tgt.x - b.x, tgt.y - b.y) > span * sight(w, lit)) continue
-    if (b.side !== "player" && b.range <= 2) {
-      if (Math.hypot(tgt.x - b.x, tgt.y - b.y) > b.radius + tgt.radius + 0.15) continue
-    }
+    const dist = Math.hypot(tgt.x - b.x, tgt.y - b.y)
+    if (melee) {
+      if (tgt.vehicle) {
+        if (dist > b.radius + tgt.radius + 0.2) continue
+      } else if (dist - tgt.radius > b.range + 0.25) continue
+    } else if (dist > (b.side === "player" ? b.range + 1.2 : b.range) * sight(w, lit)) continue
     if (b.side !== "player" && b.range > 2 && smoked(w, tgt)) continue
     if (lamp) b.hdg = Math.atan2(tgt.y - b.y, tgt.x - b.x)
     if (!ready || b.cool > 0) continue
-    b.cool = b.cooldown
-    b.fired++
-    if (b.side === "player") tag(w, b.x, b.y, "FIRE", "fire")
-    let mul = b.gears.includes("filter") ? 1 : WEATHER[w.weather].fire
-    if (casHull(b) && jtacLive(w)) mul *= 1.25
-    if (casHull(b) && w.airMark && w.airMark.t > 0) {
-      const mx = w.airMark.x
-      const my = w.airMark.y
-      let marked: Body | null = null
-      let bestD = span * sight(w, lit)
-      for (const o of w.bodies) {
-        if (!o.alive || o.side === b.side || o.boarded !== null) continue
-        const d = Math.hypot(o.x - mx, o.y - my)
-        if (d < bestD) {
-          bestD = d
-          marked = o
-        }
+    fireWeapon(w, b, tgt, {
+      range: b.range,
+      damage: b.damage,
+      cooldown: b.cooldown,
+      mobileFire: b.mobileFire,
+      deployNeed: b.deployNeed,
+      lob: b.lob,
+      aoe: b.aoe,
+      pierce: b.pierce,
+    }, false, lit)
+  }
+}
+
+function combatHands(w: World, b: Body, dt: number, pri: string | undefined, sec: string | undefined) {
+  const priW = pri ? wieldOf(b, pri) : null
+  const secW = sec ? wieldOf(b, sec) : null
+  const deploySrc = priW ?? secW
+  if (deploySrc && !deploySrc.mobileFire) {
+    if (b.moved) b.deploy = 0
+    else b.deploy = Math.min(deploySrc.deployNeed, b.deploy + dt)
+  }
+  // damage<=0 silences fire and lamp (tests and disarms), without stripping fitted gear.
+  if (b.damage <= 0 || !canFire(b)) return
+  const lamp = b.side === "player" && !b.android && !b.vehicle
+  const blind = sun(w) < NIGHT && w.vision === "off"
+  const aimSpan = Math.max(
+    priW ? (priW.range <= 2 && !priW.lob ? priW.range + 0.8 : priW.range + 1.2) : 0,
+    secW ? (secW.range <= 2 && !secW.lob ? secW.range + 0.8 : secW.range + 1.2) : 0,
+  )
+  if (aimSpan <= 0) return
+  let tgt = nearest(w, b, aimSpan * sight(w, blind), (o) => o.side !== b.side && o.boarded === null)
+  if (!tgt) return
+  const lit = blind && (inBeam(w, tgt.x, tgt.y) || inBeam(w, b.x, b.y))
+  const sightMul = sight(w, lit)
+  if (lamp) b.hdg = Math.atan2(tgt.y - b.y, tgt.x - b.x)
+  let pick: { id: string; w: Wield; side: boolean } | null = null
+  if (sec && secW && wieldReady(b, secW, true) && wieldReach(b, tgt, secW, sightMul)) {
+    pick = { id: sec, w: secW, side: true }
+  } else if (pri && priW && wieldReady(b, priW, false) && wieldReach(b, tgt, priW, sightMul)) {
+    pick = { id: pri, w: priW, side: false }
+  }
+  if (!pick) return
+  if (b.side !== "player" && pick.w.range > 2 && smoked(w, tgt)) return
+  fireWeapon(w, b, tgt, pick.w, pick.side, lit)
+}
+
+function fireWeapon(w: World, b: Body, tgt: Body, stats: Wield, side: boolean, lit: boolean) {
+  if (side) b.sideCool = stats.cooldown
+  else b.cool = stats.cooldown
+  b.fired++
+  if (b.side === "player") tag(w, b.x, b.y, "FIRE", "fire")
+  let mul = b.gears.includes("filter") ? 1 : WEATHER[w.weather].fire
+  if (casHull(b) && jtacLive(w)) mul *= 1.25
+  if (casHull(b) && w.airMark && w.airMark.t > 0) {
+    const mx = w.airMark.x
+    const my = w.airMark.y
+    let marked: Body | null = null
+    let bestD = (b.side === "player" ? stats.range + 1.2 : stats.range) * sight(w, lit)
+    for (const o of w.bodies) {
+      if (!o.alive || o.side === b.side || o.boarded !== null) continue
+      const d = Math.hypot(o.x - mx, o.y - my)
+      if (d < bestD) {
+        bestD = d
+        marked = o
       }
-      if (marked) tgt = marked
-      mul *= 1.2
-      w.airMark = null
     }
-    if (b.side !== "player" && b.range > 2) {
-      const dx = tgt.x - b.x
-      const dy = tgt.y - b.y
-      const d = Math.hypot(dx, dy) || 1
-      const spd = 14
-      w.bolts.push({
-        x: b.x,
-        y: b.y,
-        vx: (dx / d) * spd,
-        vy: (dy / d) * spd,
-        dmg: b.damage * mul,
-        life: 1.2,
-        side: b.side,
-      })
-      if (w.bolts.length > 48) w.bolts.splice(0, w.bolts.length - 48)
-      continue
-    }
+    if (marked) tgt = marked
+    mul *= 1.2
+    w.airMark = null
+  }
+  const prev = { range: b.range, damage: b.damage, pierce: b.pierce, lob: b.lob, aoe: b.aoe }
+  b.range = stats.range
+  b.damage = stats.damage
+  b.pierce = stats.pierce
+  b.lob = stats.lob
+  b.aoe = stats.aoe
+  if (b.side !== "player" && stats.range > 2) {
+    const dx = tgt.x - b.x
+    const dy = tgt.y - b.y
+    const d = Math.hypot(dx, dy) || 1
+    const spd = 14
+    w.bolts.push({
+      x: b.x,
+      y: b.y,
+      vx: (dx / d) * spd,
+      vy: (dy / d) * spd,
+      dmg: stats.damage * mul,
+      life: 1.2,
+      side: b.side,
+    })
+    if (w.bolts.length > 48) w.bolts.splice(0, w.bolts.length - 48)
+  } else {
     const tint = b.side === "rust" ? "oxide" : b.side === "feral" ? "blood" : "dust"
-    if (b.lob) {
+    if (stats.lob) {
       w.lobs.push({
         x: b.x,
         y: b.y,
         tx: tgt.x,
         ty: tgt.y,
         t: 0,
-        T: 0.55,
-        dmg: b.damage * mul,
-        aoe: b.aoe || 2.2,
+        T: b.air ? 0.7 : 0.55,
+        dmg: stats.damage * mul,
+        aoe: stats.aoe || 2.2,
         side: b.side,
+        lift: b.air ? 1.4 : 0,
       })
-      continue
+    } else {
+      pushShot(w, b.x, b.y, tgt.x, tgt.y, b.air ? 1.4 : 0)
+      let hit = stats.damage * mul
+      if (tgt.vehicle && stats.range <= 2) hit *= meleeHull(tgt.armor)
+      hurt(w, tgt, hit, tint, b)
+      if (stats.pierce > 0) pierce(w, b, tgt, tint)
     }
-    pushShot(w, b.x, b.y, tgt.x, tgt.y)
-    hurt(w, tgt, b.damage * mul, tint, b)
-    if (b.pierce > 0) pierce(w, b, tgt, tint)
   }
+  b.range = prev.range
+  b.damage = prev.damage
+  b.pierce = prev.pierce
+  b.lob = prev.lob
+  b.aoe = prev.aoe
+  reapplyGun(b)
 }
 
 function rams(w: World, dt: number) {
   for (const b of w.bodies) {
-    if (!b.alive || !b.vehicle) continue
+    if (!b.alive || !b.vehicle || b.air) continue
     b.ramCd = Math.max(0, b.ramCd - dt)
     if (b.ramCd > 0) continue
     const spd = Math.abs(b.vel)
@@ -1866,6 +2082,23 @@ function ability(w: World, cmd: Commands) {
     toast(w, w.vision === "nvg" ? "NVG" : w.vision === "thermal" ? "Thermal" : "Vis off", "gear")
     return
   }
+  if (id === "gunship" || id === "rocket" || id === "bomber") {
+    if (w.bodies.some((b) => b.alive && b.inSection && b.kind === id)) {
+      toast(w, "Busy", "gear")
+      return
+    }
+    if (slot.cd > 0) {
+      toast(w, "Cooling", "gear")
+      return
+    }
+    spendFamily(w, slot)
+    const lead = commandHull(w, commandUnit(w)) ?? commandUnit(w)
+    const x = (lead?.x ?? w.ax) + 2.2
+    const y = lead?.y ?? w.ay
+    spawnBody(w, { kind: id, x, y, inSection: true })
+    toast(w, `${card(id).name} inbound`, "gear")
+    return
+  }
   if (slot.cd > 0 || (slot.cdMax <= 0 && slot.charges <= 0)) {
     toast(w, "Cooling", "gear")
     return
@@ -1908,15 +2141,6 @@ function ability(w: World, cmd: Commands) {
       blast(w, best.x, best.y, 3.2, 28)
       return
     }
-    if (id === "fpv") {
-      spend(slot)
-      const dx = best.x - w.ax
-      const dy = best.y - w.ay
-      const d = Math.hypot(dx, dy) || 1
-      w.passes.push({ x: best.x, y: best.y, hx: dx / d, hy: dy / d, t: 0.45, n: 1, next: 0, dmg: 42, r: 2.2 })
-      toast(w, "FPV", "gear")
-      return
-    }
     let x = best.x
     let y = best.y
     let markMul = 1
@@ -1931,6 +2155,22 @@ function ability(w: World, cmd: Commands) {
     if (id === "radio") {
       w.strikes.push({ x, y, t: 0.6, n: 6, next: 0, dmg: (hot ? 28 : 22) * markMul })
       toast(w, "Artillery inbound", "gear")
+    } else if (id === "fpv") {
+      const dx = x - w.ax
+      const dy = y - w.ay
+      const d = Math.hypot(dx, dy) || 1
+      w.passes.push({
+        x,
+        y,
+        hx: -dx / d,
+        hy: -dy / d,
+        t: 1.0,
+        n: 1,
+        next: 0,
+        dmg: 72 * (hot ? 1.25 : 1) * markMul,
+        r: 2.8,
+      })
+      toast(w, "FPV inbound", "gear")
     } else {
       const dx = x - w.ax
       const dy = y - w.ay
@@ -2036,6 +2276,25 @@ function pickFit(w: World, c: ReturnType<typeof card>): Body | null {
   if (c.fits === "vehicle") return list.find((b) => b.vehicle) ?? null
   if (c.fits === "deploy") return list.find((b) => !b.vehicle && b.deployNeed > 0) ?? null
   return list.find((b) => !b.vehicle) ?? list[0] ?? null
+}
+
+function pickAttach(w: World, c: ReturnType<typeof card>): Body | null {
+  if (!c.slot) return null
+  const list = w.bodies.filter((b) => soldier(b) && canTakeAttach(b))
+  const needDeploy = c.fits === "deploy"
+  const ok = list.filter((b) => {
+    if (needDeploy) {
+      const g = primaryId(b)
+      const need = g ? card(g).gun?.deployNeed ?? 0 : 0
+      if (need <= 0) return false
+    }
+    return true
+  })
+  const empty = ok.find((b) => !b.gears.some((have) => card(have).slot === c.slot))
+  if (empty) return empty
+  const lead = ok.find((b) => b.id === w.commander)
+  if (lead) return lead
+  return ok[0] ?? null
 }
 
 function spend(slot: Slot) {
@@ -2190,19 +2449,23 @@ function tails(w: World, dt: number) {
   if (!lead) return
   for (const b of w.bodies) {
     if (!b.alive || !b.inSection || !b.follow || b.boarded !== null || b.stun > 0) continue
+    if (b.air) {
+      orbitAir(w, b, lead, dt)
+      continue
+    }
     const dx = lead.x - b.x
     const dy = lead.y - b.y
     const d = Math.hypot(dx, dy) || 1
-    if (b.vehicle && !b.air) {
+    if (b.vehicle) {
       const back = lead.radius + b.radius + 2.2
       const tx = d > back ? lead.x - (dx / d) * back : b.x
       const ty = d > back ? lead.y - (dy / d) * back : b.y
       steer(w, b, tx, ty, dt)
       continue
     }
-    const keep = b.air ? 3.4 : 2.2
+    const keep = 2.2
     if (d <= keep) continue
-    const pace = b.speed * (b.air ? 1 : bog(w, false, "", b.x, b.y)) * dt
+    const pace = b.speed * bog(w, false, "", b.x, b.y) * dt
     const m = Math.min(pace, d - keep)
     b.x = clamp(b.x + (dx / d) * m, -MAP, MAP)
     b.y = clamp(b.y + (dy / d) * m, -MAP, MAP)
@@ -2210,6 +2473,53 @@ function tails(w: World, dt: number) {
     b.hdg = Math.atan2(dy, dx)
     if (Math.abs(dx) > 0.02) b.face = dx < 0 ? -1 : 1
   }
+}
+
+function airRing(kind: string): { r: number; spin: number } {
+  if (kind === "gunboat" || kind === "copter") return { r: 4.2, spin: 1.15 }
+  if (kind === "gunship") return { r: 5.6, spin: 0.9 }
+  if (kind === "rocket") return { r: 6.8, spin: 0.72 }
+  if (kind === "bomber") return { r: 7.8, spin: 0.55 }
+  if (kind === "hawk" || kind === "mid") return { r: 4.8, spin: 1.05 }
+  return { r: 4.5, spin: 1 }
+}
+
+function orbitAir(w: World, b: Body, lead: Body, dt: number) {
+  const ring = airRing(b.kind)
+  let cx = lead.air || lead.id === b.id ? w.ax : lead.x
+  let cy = lead.air || lead.id === b.id ? w.ay : lead.y
+  if (b.vehicle || casHull(b)) {
+    let foe: Body | null = null
+    let best = 16
+    for (const o of w.bodies) {
+      if (!o.alive || o.side === "player" || o.boarded !== null) continue
+      const d = Math.hypot(o.x - cx, o.y - cy)
+      if (d < best) {
+        best = d
+        foe = o
+      }
+    }
+    if (foe) {
+      const pull = casHull(b) || b.kind === "gunboat" ? 0.4 : 0.25
+      cx = cx + (foe.x - cx) * pull
+      cy = cy + (foe.y - cy) * pull
+    }
+  }
+  const ang = w.t * ring.spin + b.id * 1.7
+  const tx = cx + Math.cos(ang) * ring.r
+  const ty = cy + Math.sin(ang) * ring.r
+  const dx = tx - b.x
+  const dy = ty - b.y
+  const d = Math.hypot(dx, dy) || 1
+  const pace = b.speed * 1.15 * dt
+  const m = Math.min(pace, d)
+  b.x = clamp(b.x + (dx / d) * m, -MAP, MAP)
+  b.y = clamp(b.y + (dy / d) * m, -MAP, MAP)
+  b.moved = m > 0.02
+  b.vel = b.speed
+  b.hdg = ang + Math.PI / 2
+  const fx = Math.cos(b.hdg)
+  if (Math.abs(fx) > 0.02) b.face = fx < 0 ? -1 : 1
 }
 
 function stash(w: World, dt: number) {
@@ -2262,7 +2572,12 @@ function sight(w: World, lit = false) {
   let s = Math.max(0.35, 1 - hide)
   if (sun(w) < NIGHT) s *= w.vision === "off" ? (lit ? 1 : 0.4) : 1.2
   let spot = 0
-  for (const b of w.bodies) if (b.alive && b.inSection && b.spot > spot) spot = b.spot
+  for (const b of w.bodies) {
+    if (!b.alive || !b.inSection) continue
+    let n = b.spot
+    for (const have of b.gears) n += card(have).spot ?? 0
+    if (n > spot) spot = n
+  }
   if (spot) s *= 1 + 0.15 * spot
   return s
 }
@@ -2284,7 +2599,10 @@ function climate(w: World, dt: number) {
 }
 
 function grantThermal(w: World) {
-  if (!w.bodies.some((b) => b.alive && b.inSection && b.android)) return
+  const have =
+    w.bodies.some((b) => b.alive && b.inSection && b.android) ||
+    w.bodies.some((b) => b.alive && b.inSection && b.gears.includes("therm_sight"))
+  if (!have) return
   if (w.toolbar.some((t) => t.id === "thermal")) return
   w.toolbar.push({ id: "thermal", charges: 0, cd: 0, cdMax: 0 })
 }
@@ -2403,8 +2721,8 @@ function ages(w: World, dt: number) {
   w.tags = w.tags.filter((t) => t.life > 0)
 }
 
-function pushShot(w: World, x: number, y: number, tx: number, ty: number) {
-  w.shots.push({ x, y, tx, ty, life: 0.08 })
+function pushShot(w: World, x: number, y: number, tx: number, ty: number, lift = 0) {
+  w.shots.push({ x, y, tx, ty, life: 0.08, lift })
 }
 
 function pierce(w: World, b: Body, first: Body, tint: Burst["tint"]) {
@@ -2434,7 +2752,7 @@ function toast(w: World, msg: string, kind: string) {
 }
 
 function noteFind(w: World, d: Drop) {
-  if (w.found.includes(d.cardId)) return
+  if (w.unlocked.includes(d.cardId) || w.found.includes(d.cardId)) return
   w.found.push(d.cardId)
   tag(w, d.x, d.y, "FIND", "find")
   toast(w, `${card(d.cardId).name} found`, "unit")
@@ -2485,14 +2803,14 @@ function bounties(w: World) {
   if (!w.paidPurge && w.kills >= 8) {
     w.paidPurge = true
     w.credits += 20
-    toast(w, "PURGE +20 CR", "unit")
-    tag(w, w.ax, w.ay, "PURGE", "bounty")
+    toast(w, "PURGE 8/8 +20 CR", "unit")
+    tag(w, w.ax, w.ay, "PURGE 8/8", "bounty")
   }
   if (!w.paidHaul && w.loot >= 3) {
     w.paidHaul = true
     w.credits += 20
-    toast(w, "HAUL +20 CR", "gear")
-    tag(w, w.ax, w.ay, "HAUL", "bounty")
+    toast(w, "HAUL 3/3 +20 CR", "gear")
+    tag(w, w.ax, w.ay, "HAUL 3/3", "bounty")
   }
   const beat = Math.floor(w.t / 36)
   if (w.t > 10 && beat > w.lineBeat) {
@@ -2501,7 +2819,8 @@ function bounties(w: World) {
   }
 }
 
-function limbs(vehicle: boolean): Limb[] {
+function limbs(vehicle: boolean, air = false): Limb[] {
+  if (vehicle && air) return [{ id: "turret", on: true }]
   if (vehicle) {
     return [
       { id: "wheel", on: true },
@@ -2526,6 +2845,7 @@ function limbSpeed(b: Body) {
 }
 
 function canFire(b: Body) {
+  if (b.air) return b.alive
   if (b.vehicle) return b.parts.some((p) => p.id === "turret" && p.on)
   return b.parts.some((p) => p.id === "arm" && p.on)
 }
@@ -2600,7 +2920,11 @@ function hurt(w: World, b: Body, amount: number, tint: Burst["tint"], from?: { x
   const ground = b.side === "rust" ? "oxide" : b.side === "feral" ? "blood" : tint
   stamp(w, b.x, b.y, tint === "flash" ? "burn" : "splat", ground)
   if (dealt >= 4) sever(w, b, tint, from?.x ?? b.x, from?.y ?? b.y - 1)
-  if (b.hp <= 0) kill(w, b)
+  if (!Number.isFinite(b.hp) || b.hp <= 0) kill(w, b)
+}
+
+function reap(w: World) {
+  for (const b of w.bodies) if (b.alive && (!Number.isFinite(b.hp) || b.hp <= 0)) kill(w, b)
 }
 
 function kill(w: World, b: Body) {

@@ -2,11 +2,14 @@ import { FLARE_R, IDLE, daylight, type Commands, type World } from "../sim/world
 
 function here(w: World) {
   const c = w.bodies.find((b) => b.id === w.commander && b.alive)
-  if (c && c.boarded !== null) {
-    const hull = w.bodies.find((b) => b.id === c.boarded && b.alive)
+  const foot = (follow: boolean) =>
+    w.bodies.find((b) => b.alive && b.inSection && b.side === "player" && !b.vehicle && b.follow === follow)
+  const boss = c ?? foot(false) ?? foot(true) ?? null
+  if (boss && boss.boarded !== null) {
+    const hull = w.bodies.find((b) => b.id === boss.boarded && b.alive)
     if (hull) return hull
   }
-  return c
+  return boss
 }
 
 export function policy(w: World): Commands {

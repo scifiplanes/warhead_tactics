@@ -1,5 +1,17 @@
 import { CARDS, DECK_CAP, callSign, card, isHero, researchCost, type CardDef } from "./content/catalog"
-import { applyWear, cardCost, deployCost, load, research, restart, save, settleHeroes, type Profile } from "./meta/profile"
+import {
+  applyWear,
+  bankFinds,
+  cardCost,
+  deployCost,
+  load,
+  research,
+  restart,
+  save,
+  settleHeroes,
+  stockOf,
+  type Profile,
+} from "./meta/profile"
 import { policy } from "./bot/policy"
 import {
   makeRun,
@@ -20,6 +32,7 @@ const deckEl = document.querySelector<HTMLElement>("#deck")!
 const cardsEl = document.querySelector<HTMLElement>("#cards")!
 const deckList = document.querySelector<HTMLElement>("#deckList")!
 const deckCount = document.querySelector<HTMLElement>("#deckCount")!
+const researchEl = document.querySelector<HTMLElement>("#research")!
 const hudEl = document.querySelector<HTMLElement>("#hud")!
 const endEl = document.querySelector<HTMLElement>("#end")!
 const pauseEl = document.querySelector<HTMLElement>("#paused")!
@@ -66,6 +79,82 @@ function count(id: string) {
   return deck.filter((x) => x === id).length
 }
 
+function pendingResearch() {
+  return CARDS.filter((c) => {
+    if (!c.deck || !profile.found.includes(c.id)) return false
+    return (profile.depth[c.id] ?? 0) < DECK_CAP
+  })
+}
+
+function paintResearch() {
+  const pending = pendingResearch()
+  const finds = document.querySelector("#finds")
+  if (finds) {
+    finds.replaceChildren()
+    if (pending.length) {
+      const open = document.createElement("button")
+      open.type = "button"
+      open.className = "ghost"
+      open.textContent = `RESEARCH · ${pending.length}`
+      open.addEventListener("click", () => {
+        researchEl.classList.remove("hidden")
+        paintResearch()
+      })
+      finds.append(open)
+    }
+  }
+  const countEl = document.querySelector("#research-count")
+  if (countEl) countEl.textContent = `${pending.length}`
+  const bank = document.querySelector("#research-bank")
+  if (bank) bank.textContent = `CREDITS ${profile.credits}`
+  const list = document.querySelector("#research-list")
+  if (!list) return
+  list.replaceChildren()
+  if (!pending.length) {
+    researchEl.classList.add("hidden")
+    return
+  }
+  for (const [title, kind] of groups) {
+    const rows = pending
+      .filter((c) => c.kind === kind)
+      .sort((a, b) => {
+        const ca = researchCost(a.id, profile.depth[a.id] ?? 0)
+        const cb = researchCost(b.id, profile.depth[b.id] ?? 0)
+        const canA = profile.credits >= ca ? 0 : 1
+        const canB = profile.credits >= cb ? 0 : 1
+        if (canA !== canB) return canA - canB
+        if (ca !== cb) return ca - cb
+        return a.name.localeCompare(b.name)
+      })
+    if (!rows.length) continue
+    const h = document.createElement("h2")
+    h.textContent = title
+    const grid = document.createElement("div")
+    grid.className = "grid"
+    for (const row of rows) {
+      const btn = document.createElement("button")
+      btn.type = "button"
+      btn.className = "card"
+      btn.append(preview(row.id, 44))
+      const b = document.createElement("b")
+      b.textContent = row.name
+      const depth = profile.depth[row.id] ?? 0
+      const costR = researchCost(row.id, depth)
+      const small = document.createElement("small")
+      small.textContent = depth ? `MORE · ${costR} CR` : `${costR} CR`
+      btn.append(b, small)
+      btn.disabled = profile.credits < costR
+      btn.addEventListener("click", () => {
+        if (!research(profile, row.id)) return
+        save(profile)
+        paintDeck()
+      })
+      grid.append(btn)
+    }
+    list.append(h, grid)
+  }
+}
+
 function paintDeck() {
   const cost = deployCost(deck, profile.wear)
   deckCount.textContent = `${deck.length} / ${DECK_CAP}`
@@ -75,24 +164,7 @@ function paintDeck() {
   const botDeploy = document.querySelector<HTMLButtonElement>("#deploy-bot")
   if (deployBtn) deployBtn.textContent = cost ? `DEPLOY ${cost} CR` : "DEPLOY"
   if (botDeploy) botDeploy.disabled = false
-  const finds = document.querySelector("#finds")
-  if (finds) {
-    finds.replaceChildren()
-    for (const row of CARDS.filter((c) => c.deck && profile.found.includes(c.id) && !profile.known.includes(c.id))) {
-      const btn = document.createElement("button")
-      btn.type = "button"
-      btn.className = "ghost"
-      const costR = researchCost(row.id)
-      btn.textContent = `RESEARCH ${row.name} ${costR} CR`
-      btn.disabled = profile.credits < costR
-      btn.addEventListener("click", () => {
-        if (!research(profile, row.id)) return
-        save(profile)
-        paintDeck()
-      })
-      finds.append(btn)
-    }
-  }
+  paintResearch()
   cardsEl.replaceChildren()
   for (const [title, kind] of groups) {
     const h = document.createElement("h2")
@@ -111,11 +183,12 @@ function paintDeck() {
       small.textContent = price ? `${price} CR` : ""
       const n = document.createElement("span")
       n.className = "n"
-      n.textContent = count(row.id) ? `${count(row.id)}/${row.max}` : ""
+      const stock = stockOf(profile, row.id)
+      n.textContent = count(row.id) ? `${count(row.id)}/${stock}` : `${stock}`
       btn.append(b, small, n)
-      btn.disabled = count(row.id) >= row.max || deck.length >= DECK_CAP
+      btn.disabled = count(row.id) >= stock || deck.length >= DECK_CAP
       btn.addEventListener("click", () => {
-        if (count(row.id) >= row.max || deck.length >= DECK_CAP) return
+        if (count(row.id) >= stock || deck.length >= DECK_CAP) return
         deck.push(row.id)
         paintDeck()
       })
@@ -188,7 +261,7 @@ document.querySelector("#fill")!.addEventListener("click", () => {
   let guard = 0
   while (deck.length < DECK_CAP && pool.length && guard++ < 80) {
     const row = pool[(Math.random() * pool.length) | 0]
-    if (count(row.id) >= row.max) continue
+    if (count(row.id) >= stockOf(profile, row.id)) continue
     if (deployCost(deck, profile.wear) + cardCost(row.id, profile.wear[row.id] ?? 0, count(row.id)) > profile.credits) continue
     deck.push(row.id)
   }
@@ -235,6 +308,7 @@ function openSystem() {
 document.querySelector("#system-open")!.addEventListener("click", openSystem)
 document.querySelector("#system-pause")!.addEventListener("click", openSystem)
 document.querySelector("#system-close")!.addEventListener("click", () => systemEl.classList.add("hidden"))
+document.querySelector("#research-close")!.addEventListener("click", () => researchEl.classList.add("hidden"))
 
 const debugEl = document.querySelector<HTMLElement>("#debug")!
 const ditherOn = document.querySelector<HTMLButtonElement>("#dither-on")!
@@ -463,7 +537,13 @@ function start(asBot: boolean) {
   botBtn.textContent = bot ? "BOT ON" : "BOT OFF"
   const seed = Number(seedEl.value) || 1
   const hidden = CARDS.filter((c) => c.deck && !profile.found.includes(c.id)).map((c) => c.id)
-  world = makeRun(seed, deck, { diff: diff(), hidden, known: profile.known, heroes: profile.heroes, wear })
+  world = makeRun(seed, deck, {
+    diff: diff(),
+    hidden,
+    known: profile.known.slice(),
+    heroes: profile.heroes,
+    wear,
+  })
   parts.length = 0
   toolSig = ""
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
@@ -533,14 +613,10 @@ function clock(t: number) {
 }
 
 function paintHud(w: World) {
-  document.querySelector("#timer")!.textContent = `${clock(w.t)}  ${speed > 1 ? "2×  " : ""}lost ${w.lost}`
-  const dropIn = w.banner || `DROP ${Math.max(0, Math.ceil(w.nextDrop))}s`
-  document.querySelector("#dropIn")!.textContent = dropIn
+  document.querySelector("#timer")!.textContent = `${clock(w.t)}${speed > 1 ? "  2×" : ""}`
   document.querySelector("#kills")!.textContent = `KILLS ${w.kills}`
   const cr = document.querySelector("#credits")
   if (cr) cr.textContent = `CR ${profile.credits + w.credits}`
-  const bounty = document.querySelector("#bounty")
-  if (bounty) bounty.textContent = `PURGE ${Math.min(8, w.kills)}/8  HAUL ${Math.min(3, w.loot)}/3`
   document.querySelector("#group-label")!.textContent = w.groupLabel
   document.querySelector("#spread-label")!.textContent = w.spreadLabel
 
@@ -590,9 +666,11 @@ function paintHud(w: World) {
       const k = document.createElement("span")
       k.className = "k"
       k.textContent = String(n + 1)
+      const meter = document.createElement("i")
+      meter.className = "meter"
       const c = document.createElement("span")
       c.className = "c"
-      btn.append(k, c)
+      btn.append(k, meter, c)
       btn.addEventListener("pointerdown", (e) => {
         e.preventDefault()
         arm(n)
@@ -602,10 +680,17 @@ function paintHud(w: World) {
   }
   for (let n = 0; n < w.toolbar.length && n < 9; n++) {
     const slot = w.toolbar[n]
-    const label = toolbarEl.children[n]?.querySelector(".c")
-    if (!label) continue
+    const btn = toolbarEl.children[n] as HTMLElement | undefined
+    const label = btn?.querySelector(".c")
+    if (!btn || !label) continue
+    const cool = slot.cd > 0 && slot.cdMax > 0
+    const spent = !cool && slot.cdMax <= 0 && slot.charges <= 0 && slot.id !== "nvg" && slot.id !== "thermal"
+    btn.classList.toggle("cool", cool)
+    btn.classList.toggle("spent", spent)
+    btn.style.setProperty("--cd", cool ? String(Math.min(1, slot.cd / slot.cdMax)) : "0")
     if (slot.id === "nvg" || slot.id === "thermal") label.textContent = w.vision === slot.id ? "ON" : ""
-    else label.textContent = slot.cd > 0 ? slot.cd.toFixed(0) : slot.charges > 0 ? String(slot.charges) : ""
+    else if (cool) label.textContent = String(Math.max(1, Math.ceil(slot.cd)))
+    else label.textContent = slot.charges > 0 ? String(slot.charges) : ""
   }
 }
 
@@ -649,7 +734,17 @@ function finish() {
   profile.credits += world.credits
   world.credits = 0
   settleHeroes(profile, world)
-  for (const id of world.found) if (!profile.found.includes(id) && !isHero(id)) profile.found.push(id)
+  const freshFinds = bankFinds(profile, world.found)
+  if (freshFinds.length) {
+    const names = freshFinds.map((id) => {
+      try {
+        return card(id).name
+      } catch {
+        return id
+      }
+    })
+    rows.push(["RESEARCH", names.join(" · ")])
+  }
   save(profile)
   paintDeck()
   for (const [k, v] of rows) {

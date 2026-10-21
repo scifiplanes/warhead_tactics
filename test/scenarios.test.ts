@@ -1,6 +1,6 @@
 import { expect, test } from "vitest"
-import { FORM_REPEAT, callSign, card, hostile, priceOf, researchCost, rollHero } from "../src/content/catalog"
-import { applyWear, deployCost, fresh, research, restart, settleHeroes } from "../src/meta/profile"
+import { CARDS, DECK_CAP, FORM_REPEAT, STARTER, callSign, card, hostile, priceOf, researchCost, rollHero } from "../src/content/catalog"
+import { applyWear, bankFinds, deployCost, fresh, research, restart, settleHeroes, stockOf } from "../src/meta/profile"
 import { policy } from "../src/bot/policy"
 import {
   CRAFT_WAIT,
@@ -273,6 +273,55 @@ test("stand-to-fire stays silent until deploy completes", () => {
   console.log("GATE deploy-fire ok")
 })
 
+test("a bite reaches a hull skin and a zero-hp hull dies", () => {
+  const bite = quiet()
+  const tank = spawnBody(bite, { kind: "tank", x: 0, y: 0, inSection: true, damage: 0 })
+  bite.bodies.find((b) => b.kind === "cell_rifle")!.boarded = tank.id
+  bite.bodies.find((b) => b.kind === "cell_rifle")!.damage = 0
+  spawnBody(bite, {
+    kind: "shambler",
+    x: tank.radius + 0.3,
+    y: 0,
+    speed: 0,
+    damage: 12,
+    cooldown: 0.2,
+    range: 1.2,
+  })
+  const before = tank.hp
+  go(bite, IDLE, 0.25)
+  expect(tank.hp).toBeLessThan(before)
+
+  const wreck = quiet()
+  const hull = spawnBody(wreck, { kind: "jeep", x: 0, y: 0, inSection: true, damage: 0, hp: 0 })
+  expect(hull.alive).toBe(true)
+  step(wreck, IDLE, 1 / 30)
+  expect(hull.alive).toBe(false)
+  console.log("GATE melee-hull-reach ok")
+})
+
+test("a bite scrapes a hull instead of chewing it", () => {
+  const w = quiet()
+  const tank = spawnBody(w, { kind: "tank", x: 0, y: 0, inSection: true, damage: 0 })
+  const cell = w.bodies.find((b) => b.kind === "cell_rifle")!
+  cell.boarded = tank.id
+  cell.damage = 0
+  spawnBody(w, {
+    kind: "pighead",
+    x: 1.2,
+    y: 0,
+    speed: 0,
+    damage: 10,
+    cooldown: 0.2,
+    range: 2,
+  })
+  const before = tank.hp
+  go(w, IDLE, 0.22)
+  const lost = before - tank.hp
+  const scrape = Math.max(0.25, 0.9 - tank.armor)
+  expect(lost).toBeCloseTo(10 * scrape * (1 - tank.armor), 5)
+  console.log("GATE melee-hull scrape ok")
+})
+
 test("ram hurts the hull and only a heavy hull breaks a ruin", () => {
   const ram = quiet()
   ram.props.length = 0
@@ -352,6 +401,30 @@ test("a hull drives off after one bump", () => {
   go(w, { ...IDLE, moveY: -1 }, 1)
   expect(apc.y).toBeLessThan(hitY - 0.8)
   expect(apc.alive).toBe(true)
+})
+
+test("a ruin stutter does not chew a hull down", () => {
+  const w = quiet()
+  w.props.length = 0
+  const jeep = spawnBody(w, { kind: "jeep", x: 0, y: 0, inSection: true, damage: 0 })
+  const cell = w.bodies.find((b) => b.kind === "cell_rifle")!
+  cell.boarded = jeep.id
+  for (let i = 0; i < 4; i++) {
+    w.props.push({
+      id: 910 + i,
+      kind: "ruin",
+      x: (i % 2) * 1.1 - 0.55,
+      y: 2.2 + Math.floor(i / 2) * 1.1,
+      hp: 30,
+      radius: 1.05,
+      alive: true,
+    })
+  }
+  const before = jeep.hp
+  go(w, { ...IDLE, moveY: 1 }, 1.2)
+  expect(jeep.alive).toBe(true)
+  expect(before - jeep.hp).toBeLessThan(before * 0.35)
+  console.log("GATE ruin-stutter ok")
 })
 
 test("holding the path opens a harder field", () => {
@@ -675,6 +748,125 @@ test("a weapon is gear and replaces the gun", () => {
   expect(card("mortar").kind).toBe("gear")
 })
 
+test("gun attachments shed onto the mud as items when the gun is replaced", () => {
+  const w = quiet()
+  const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
+  placeDrop(w, "plate", 0.2, 0)
+  placeDrop(w, "scope", 0.3, 0)
+  placeDrop(w, "grip", 0.4, 0)
+  go(w, IDLE, 0.4)
+  expect(lead.gears).toContain("plate")
+  expect(lead.gears).toContain("scope")
+  expect(lead.gears).toContain("grip")
+  expect(lead.range).toBeCloseTo(9 * 1.3, 5)
+  placeDrop(w, "sniper", 0.2, 0)
+  go(w, IDLE, 0.3)
+  expect(lead.gears).toContain("sniper")
+  expect(lead.gears).toContain("plate")
+  expect(lead.gears.includes("scope")).toBe(false)
+  expect(lead.gears.includes("grip")).toBe(false)
+  expect(lead.range).toBe(18)
+  const shed = w.drops.filter((d) => !d.taken && d.skin === "item")
+  expect(shed.map((d) => d.cardId).sort()).toEqual(["grip", "scope"])
+  const scopeDrop = shed.find((d) => d.cardId === "scope")!
+  lead.x = scopeDrop.x
+  lead.y = scopeDrop.y
+  w.ax = lead.x
+  w.ay = lead.y
+  go(w, IDLE, 0.3)
+  expect(lead.gears).toContain("scope")
+  expect(lead.range).toBeCloseTo(18 * 1.3, 5)
+})
+
+test("a second optic replaces the first and sheds it as an item", () => {
+  const w = quiet()
+  const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
+  placeDrop(w, "scope", 0.2, 0)
+  go(w, IDLE, 0.3)
+  expect(lead.gears).toContain("scope")
+  expect(lead.range).toBeCloseTo(11.7, 5)
+  placeDrop(w, "dot", 0.2, 0)
+  go(w, IDLE, 0.3)
+  expect(lead.gears).toContain("dot")
+  expect(lead.gears.includes("scope")).toBe(false)
+  expect(lead.range).toBe(9)
+  expect(lead.cooldown).toBeCloseTo(0.45 * 0.88, 5)
+  expect(w.drops.some((d) => !d.taken && d.cardId === "scope" && d.skin === "item")).toBe(true)
+})
+
+test("blades reject gun attachments and bows accept them", () => {
+  const blade = quiet()
+  const lead = blade.bodies.find((b) => b.kind === "cell_rifle")!
+  placeDrop(blade, "katana", 0.2, 0)
+  go(blade, IDLE, 0.3)
+  expect(lead.gears).toContain("katana")
+  expect(lead.gears.includes("rifle")).toBe(false)
+  placeDrop(blade, "scope", 0.2, 0)
+  go(blade, IDLE, 0.3)
+  expect(lead.gears.includes("scope")).toBe(false)
+  expect(blade.drops.some((d) => !d.taken && d.cardId === "scope")).toBe(true)
+
+  const bow = quiet(2)
+  const cell = bow.bodies.find((b) => b.kind === "cell_rifle")!
+  placeDrop(bow, "bow", 0.2, 0)
+  go(bow, IDLE, 0.3)
+  placeDrop(bow, "grip", 0.2, 0)
+  go(bow, IDLE, 0.3)
+  expect(cell.gears).toContain("bow")
+  expect(cell.gears).toContain("grip")
+})
+
+test("bipod needs a deploy weapon", () => {
+  const w = quiet()
+  const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
+  placeDrop(w, "gren", 0.2, 0)
+  go(w, IDLE, 0.3)
+  expect(lead.gears).toContain("gren")
+  placeDrop(w, "bipod", 0.2, 0)
+  go(w, IDLE, 0.3)
+  expect(lead.gears.includes("bipod")).toBe(false)
+  placeDrop(w, "rifle", 0.2, 0)
+  go(w, IDLE, 0.3)
+  placeDrop(w, "bipod", 0.2, 0)
+  go(w, IDLE, 0.3)
+  expect(lead.gears).toContain("bipod")
+  expect(lead.deployNeed).toBeCloseTo(0.8 * 0.4, 5)
+})
+
+test("every gun attachment has a slot and a price", () => {
+  const ids = [
+    "dot",
+    "holo",
+    "scope",
+    "long",
+    "reflex",
+    "therm_sight",
+    "grip",
+    "agrip",
+    "stub",
+    "stop",
+    "fore",
+    "stick",
+    "drum",
+    "box",
+    "belt",
+    "bipod",
+    "stock",
+    "brace",
+    "fold",
+    "brake",
+    "supp",
+    "comp",
+    "flash",
+  ]
+  for (const id of ids) {
+    const c = card(id)
+    expect(c.kind).toBe("gear")
+    expect(c.slot).toBeTruthy()
+    expect(priceOf(id)).toBeGreaterThan(0)
+  }
+})
+
 test("a field commits to one ground's cover", () => {
   const seen = new Set<string>()
   const mixes = new Set<string>()
@@ -735,13 +927,80 @@ test("kills and loot pay credits, and a find stays locked until research", () =>
   expect(deployCost(["cell_rifle"])).toBe(0)
   expect(priceOf("aegis")).toBeGreaterThan(0)
   expect(researchCost("aegis")).toBe(priceOf("aegis") * 20)
+  expect(researchCost("aegis", 1)).toBe(priceOf("aegis") * 40)
   p.found.push("aegis")
   p.credits = researchCost("aegis") - 1
   expect(research(p, "aegis")).toBe(false)
   p.credits = researchCost("aegis")
   expect(research(p, "aegis")).toBe(true)
   expect(p.known).toContain("aegis")
+  expect(stockOf(p, "aegis")).toBe(1)
   expect(deployCost(["aegis"])).toBe(priceOf("aegis"))
+})
+
+test("researching again raises the cost and adds a copy", () => {
+  const p = fresh()
+  expect(stockOf(p, "cell_rifle")).toBe(1)
+  expect(researchCost("cell_rifle", 1)).toBe(20 * 20 * 2)
+  p.found.push("aegis")
+  const base = researchCost("aegis", 0)
+  p.credits = base
+  expect(research(p, "aegis")).toBe(true)
+  expect(stockOf(p, "aegis")).toBe(1)
+  const next = researchCost("aegis", p.depth.aegis)
+  expect(next).toBe(base * 2)
+  p.credits = next - 1
+  expect(research(p, "aegis")).toBe(false)
+  p.credits = next
+  expect(research(p, "aegis")).toBe(true)
+  expect(stockOf(p, "aegis")).toBe(2)
+  expect(p.depth.aegis).toBe(2)
+  p.depth.aegis = DECK_CAP
+  p.credits = researchCost("aegis", DECK_CAP)
+  expect(research(p, "aegis")).toBe(false)
+  expect(stockOf(p, "aegis")).toBe(DECK_CAP)
+})
+
+test("extract banks finds as researchable, not buyable", () => {
+  const profile = fresh()
+  restart(profile)
+  expect(profile.found).not.toBe(profile.known)
+  expect(profile.known).toEqual([STARTER])
+  const finds = ["jeep", "tank", "mg", "plate", "bipod", "stim", "plating", "mines", "nitro"]
+  const hidden = CARDS.filter((c) => c.deck && !profile.found.includes(c.id)).map((c) => c.id)
+  const w = makeRun(1, [STARTER], { hidden, known: profile.known })
+  expect(w.found).not.toBe(profile.known)
+  expect(w.found).toEqual([])
+  expect(w.unlocked).toEqual([STARTER])
+  expect(w.unlocked).not.toBe(profile.known)
+  for (const id of finds) {
+    placeDrop(w, id, 0, 0)
+    go(w, IDLE, 0.5)
+  }
+  for (const id of finds) expect(w.found).toContain(id)
+  expect(profile.known).toEqual([STARTER])
+  const added = bankFinds(profile, w.found)
+  expect(added).toEqual(finds)
+  expect(bankFinds(profile, w.found)).toEqual([])
+  for (const id of finds) {
+    expect(profile.found).toContain(id)
+    expect(profile.known).not.toContain(id)
+    expect(stockOf(profile, id)).toBe(0)
+  }
+  const shop = CARDS.filter((c) => c.deck && profile.known.includes(c.id)).map((c) => c.id)
+  const researchable = CARDS.filter(
+    (c) => c.deck && profile.found.includes(c.id) && (profile.depth[c.id] ?? 0) < DECK_CAP,
+  ).map((c) => c.id)
+  expect(shop).toEqual([STARTER])
+  for (const id of finds) {
+    expect(shop).not.toContain(id)
+    expect(researchable).toContain(id)
+  }
+  expect(research(profile, "jeep")).toBe(false)
+  profile.credits = researchCost("jeep")
+  expect(research(profile, "jeep")).toBe(true)
+  expect(profile.known).toContain("jeep")
+  expect(stockOf(profile, "jeep")).toBe(1)
 })
 
 test("attrition stacks on a card kept in the deck and cools when it sits out", () => {
@@ -768,7 +1027,46 @@ test("attrition stacks on a card kept in the deck and cools when it sits out", (
 })
 
 test("medic patches a wounded cell", () => {
-  for (const id of ["mg", "sniper", "gren", "medic", "mortar", "jeep", "tank", "scope", "drum", "bipod", "stim", "plating", "ram", "mines", "sentry", "kit", "radio", "nitro"]) {
+  for (const id of [
+    "mg",
+    "sniper",
+    "gren",
+    "medic",
+    "mortar",
+    "jeep",
+    "tank",
+    "dot",
+    "holo",
+    "scope",
+    "long",
+    "reflex",
+    "therm_sight",
+    "grip",
+    "agrip",
+    "stub",
+    "stop",
+    "fore",
+    "stick",
+    "drum",
+    "box",
+    "belt",
+    "bipod",
+    "stock",
+    "brace",
+    "fold",
+    "brake",
+    "supp",
+    "comp",
+    "flash",
+    "stim",
+    "plating",
+    "ram",
+    "mines",
+    "sentry",
+    "kit",
+    "radio",
+    "nitro",
+  ]) {
     expect(card(id).id).toBe(id)
   }
   for (const id of ["mutant", "drone", "walker"]) expect(hostile(id).id).toBe(id)
@@ -1002,44 +1300,89 @@ test("CAS strafes along the crowd", () => {
   expect(flank.hp).toBe(80)
 })
 
-test("JTAC, timed CAS airframes, laser, and FPV stay separate", () => {
-  for (const id of ["jtac", "gunship", "rocket", "bomber", "laser"]) {
+test("JTAC, timed CAS airframes, laser, and FPV inbound", () => {
+  for (const id of ["jtac", "gunship", "rocket", "bomber", "laser", "fpv"]) {
     expect(card(id).deck).toBe(true)
     expect(priceOf(id)).toBeGreaterThan(0)
   }
+  expect(priceOf("fpv")).toBeGreaterThan(priceOf("knife"))
+  expect(card("fpv").cd).toBe(46)
+  expect(card("fpv").charges).toBeUndefined()
+  for (const id of ["gunship", "rocket", "bomber"] as const) {
+    expect(card(id).kind).toBe("gear")
+    expect(card(id).ability).toBe(id)
+    expect(card(id).fits).toBe("section")
+  }
   expect(card("gunship").sortie).toBe(24)
+  expect(card("gunship").cd).toBe(45)
   expect(card("rocket").sortie).toBe(20)
+  expect(card("rocket").cd).toBe(48)
   expect(card("bomber").sortie).toBe(18)
+  expect(card("bomber").cd).toBe(52)
   expect(card("rocket").lob).toBe(true)
+  expect(card("bomber").lob).toBe(true)
+  expect(card("gunboat").kind).toBe("vehicle")
   expect(card("gunboat").sortie).toBeUndefined()
 
   const birds = quiet()
   birds.bodies.find((b) => b.kind === "cell_rifle")!.damage = 0
-  const ship = spawnBody(birds, { kind: "gunship", x: 1, y: 0, inSection: true })
-  const pod = spawnBody(birds, { kind: "rocket", x: 1.2, y: 0.2, inSection: true })
-  const bomb = spawnBody(birds, { kind: "bomber", x: 1.4, y: -0.2, inSection: true })
-  const boat = spawnBody(birds, { kind: "gunboat", x: 1.6, y: 0, inSection: true })
+  spawnBody(birds, { kind: "shambler", x: 5, y: 0, hp: 200, damage: 0, speed: 0 })
+  birds.toolbar.push(
+    { id: "gunship", charges: 0, cd: 0, cdMax: 45 },
+    { id: "rocket", charges: 0, cd: 0, cdMax: 48 },
+    { id: "bomber", charges: 0, cd: 0, cdMax: 52 },
+  )
+  step(birds, { ...IDLE, ability: 0 }, 1 / 30)
+  expect(birds.toolbar[0].cd).toBeCloseTo(45, 5)
+  step(birds, { ...IDLE, ability: 1 }, 1 / 30)
+  expect(birds.toolbar[1].cd).toBeCloseTo(48, 5)
+  step(birds, { ...IDLE, ability: 2 }, 1 / 30)
+  expect(birds.toolbar[2].cd).toBeCloseTo(52, 5)
+  const ship = birds.bodies.find((b) => b.kind === "gunship" && b.alive)!
+  const pod = birds.bodies.find((b) => b.kind === "rocket" && b.alive)!
+  const bomb = birds.bodies.find((b) => b.kind === "bomber" && b.alive)!
   expect(ship.follow).toBe(true)
   expect(ship.air).toBe(true)
   expect(ship.seats).toBe(0)
-  expect(ship.sortieT).toBe(24)
+  expect(ship.sortieT).toBeCloseTo(24, 0)
   expect(pod.lob).toBe(true)
-  expect(bomb.sortieT).toBe(18)
-  expect(boat.sortieT).toBe(0)
-  spawnBody(birds, { kind: "shambler", x: 5, y: 0, hp: 200, damage: 0, speed: 0 })
-  go(birds, IDLE, 1.2)
+  expect(bomb.lob).toBe(true)
+  expect(bomb.sortieT).toBeCloseTo(18, 0)
+  expect(pod.parts.every((p) => p.id === "turret")).toBe(true)
+  const ox = pod.x
+  const oy = pod.y
+  const beforeBusy = birds.toasts.length
+  step(birds, { ...IDLE, ability: 1 }, 1 / 30)
+  expect(birds.toasts.some((t) => t.msg === "Busy")).toBe(true)
+  expect(birds.toasts.length).toBeGreaterThan(beforeBusy)
+  go(birds, IDLE, 0.4)
   expect(ship.fired + pod.fired + bomb.fired).toBeGreaterThan(0)
+  expect(birds.lobs.some((l) => l.lift > 0)).toBe(true)
+  go(birds, IDLE, 1)
+  expect(Math.hypot(pod.x - ox, pod.y - oy)).toBeGreaterThan(1.5)
   go(birds, IDLE, 25)
   expect(ship.alive).toBe(false)
   expect(pod.alive).toBe(false)
   expect(bomb.alive).toBe(false)
-  expect(boat.alive).toBe(true)
   expect(birds.lost).toBe(0)
+  birds.toolbar[1].cd = 0
+  step(birds, { ...IDLE, ability: 1 }, 1 / 30)
+  expect(birds.bodies.some((b) => b.alive && b.kind === "rocket")).toBe(true)
+
+  const boat = quiet()
+  boat.bodies.find((b) => b.kind === "cell_rifle")!.damage = 0
+  const hull = spawnBody(boat, { kind: "gunboat", x: 1.6, y: 0, inSection: true })
+  expect(hull.sortieT).toBe(0)
+  go(boat, IDLE, 25)
+  expect(hull.alive).toBe(true)
 
   const long = quiet()
   long.bodies.find((b) => b.kind === "cell_rifle")!.damage = 0
   spawnBody(long, { kind: "jtac", x: 0.4, y: 0, inSection: true })
-  const hot = spawnBody(long, { kind: "gunship", x: 1, y: 0, inSection: true })
+  long.toolbar.push({ id: "gunship", charges: 0, cd: 0, cdMax: 45 })
+  step(long, { ...IDLE, ability: 0 }, 1 / 30)
+  expect(long.toolbar[0].cd).toBeCloseTo(31.5, 5)
+  const hot = long.bodies.find((b) => b.kind === "gunship" && b.alive)!
   expect(hot.sortieT).toBeCloseTo(30, 5)
 
   const cold = quiet()
@@ -1078,20 +1421,34 @@ test("JTAC, timed CAS airframes, laser, and FPV stay separate", () => {
   const fpvCold = quiet()
   fpvCold.bodies.find((b) => b.kind === "cell_rifle")!.damage = 0
   const a = spawnBody(fpvCold, { kind: "shambler", x: 6, y: 0, hp: 80, damage: 0, speed: 0 })
-  fpvCold.toolbar.push({ id: "fpv", charges: 1, cd: 0, cdMax: 0 })
+  fpvCold.toolbar.push({ id: "fpv", charges: 0, cd: 0, cdMax: 46 })
   step(fpvCold, { ...IDLE, ability: 0 }, 1 / 30)
-  go(fpvCold, IDLE, 0.8)
+  expect(fpvCold.toolbar[0].cd).toBe(46)
+  expect(fpvCold.toasts.some((t) => t.msg === "FPV inbound")).toBe(true)
+  go(fpvCold, IDLE, 1.5)
   const fpvHp = a.hp
 
   const fpvHot = quiet()
   fpvHot.bodies.find((b) => b.kind === "cell_rifle")!.damage = 0
   spawnBody(fpvHot, { kind: "jtac", x: 0.3, y: 0, inSection: true })
   const b = spawnBody(fpvHot, { kind: "shambler", x: 6, y: 0, hp: 80, damage: 0, speed: 0 })
-  fpvHot.toolbar.push({ id: "fpv", charges: 1, cd: 0, cdMax: 0 })
+  fpvHot.toolbar.push({ id: "fpv", charges: 0, cd: 0, cdMax: 46 })
   step(fpvHot, { ...IDLE, ability: 0 }, 1 / 30)
-  expect(fpvHot.passes[0].dmg).toBe(42)
-  go(fpvHot, IDLE, 0.8)
-  expect(b.hp).toBe(fpvHp)
+  expect(fpvHot.toolbar[0].cd).toBeCloseTo(32.2, 5)
+  expect(fpvHot.passes[0].dmg).toBeCloseTo(90, 5)
+  go(fpvHot, IDLE, 1.5)
+  expect(b.hp).toBeLessThan(fpvHp)
+
+  const fpvPaint = quiet()
+  fpvPaint.bodies.find((b) => b.kind === "cell_rifle")!.damage = 0
+  const paintedFoe = spawnBody(fpvPaint, { kind: "shambler", x: 0, y: 8, hp: 120, damage: 0, speed: 0 })
+  const otherFoe = spawnBody(fpvPaint, { kind: "shambler", x: 8, y: 0, hp: 120, damage: 0, speed: 0 })
+  fpvPaint.toolbar.push({ id: "laser", charges: 0, cd: 0, cdMax: 18 }, { id: "fpv", charges: 0, cd: 0, cdMax: 46 })
+  step(fpvPaint, { ...IDLE, ability: 0 }, 1 / 30)
+  step(fpvPaint, { ...IDLE, ability: 1 }, 1 / 30)
+  expect(fpvPaint.passes[0].y).toBeCloseTo(paintedFoe.y, 0)
+  go(fpvPaint, IDLE, 1.5)
+  expect(paintedFoe.hp).toBeLessThan(otherFoe.hp)
 })
 
 test("goathead shoots and crowhead gnats land on the squad", () => {
@@ -1326,10 +1683,10 @@ test("late rust, leashes, marsh, stash, and the new tools", () => {
   const drone = quiet()
   drone.bodies.find((b) => b.kind === "cell_rifle")!.damage = 0
   const foe = spawnBody(drone, { kind: "shambler", x: 6, y: 0, hp: 80, damage: 0, speed: 0 })
-  drone.toolbar.push({ id: "fpv", charges: 1, cd: 0, cdMax: 0 })
+  drone.toolbar.push({ id: "fpv", charges: 0, cd: 0, cdMax: 46 })
   step(drone, { ...IDLE, ability: 0 }, 1 / 30)
   expect(drone.passes).toHaveLength(1)
-  go(drone, IDLE, 0.8)
+  go(drone, IDLE, 1.5)
   expect(foe.hp).toBeLessThan(80)
 
   const hull = quiet()
@@ -1362,6 +1719,8 @@ test("late rust, leashes, marsh, stash, and the new tools", () => {
 test("the rest of the roster is gear, hulls, and rust", () => {
   const ids = [
     "knife", "kukri", "katana", "machete", "sword", "axe", "stave", "baton", "bow", "warbow",
+    "pistol", "revolver", "autopistol", "magnum", "minismg", "laserpistol",
+    "smg", "shotgun", "autoshotgun", "railgun",
     "at", "jetpack", "litter", "filter", "ewar", "truck", "tech", "suv", "steed", "cart", "mule",
     "gunboat", "gunship", "rocket", "bomber", "mlrs", "ifv", "mbt", "ugv", "tube", "drill", "pump", "cutter",
     "hawk", "mid", "assassin", "operator", "jtac", "laser",
@@ -1378,6 +1737,9 @@ test("the rest of the roster is gear, hulls, and rust", () => {
   expect(card("gunboat").kind).toBe("vehicle")
   expect(card("gunboat").stats?.seats).toBe(0)
   expect(card("gunboat").air).toBe(true)
+  expect(card("gunship").kind).toBe("gear")
+  expect(card("rocket").kind).toBe("gear")
+  expect(card("bomber").kind).toBe("gear")
   expect(card("gunboat").follow).toBe(true)
   expect(card("ugv").stats?.seats).toBe(0)
   expect(card("ugv").follow).toBe(true)
@@ -1601,4 +1963,70 @@ test("seeds field different ground, and depth 0 stays off the heavy list", () =>
   go(w, IDLE, PATH_HOLD + 0.2)
   expect(w.depth).toBe(1)
   expect(["herd", "coil"]).toContain(w.pressure)
+})
+
+test("starting cell armed", () => {
+  const w = quiet()
+  const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
+  expect(lead.gears).toContain("rifle")
+  expect(lead.damage).toBe(7)
+  expect(lead.range).toBe(9)
+  expect(lead.mobileFire).toBe(false)
+})
+
+test("a knife fits beside the rifle and cuts close while the rifle holds the range", () => {
+  const w = quiet()
+  const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
+  placeDrop(w, "knife", 0.2, 0)
+  go(w, IDLE, 0.3)
+  expect(lead.gears).toContain("knife")
+  expect(lead.gears).toContain("rifle")
+  expect(card("knife").hand).toBe("secondary")
+  expect(lead.range).toBe(9)
+  expect(lead.mobileFire).toBe(false)
+  const near = spawnBody(w, {
+    kind: "shambler",
+    x: card("knife").gun!.range + 0.2,
+    y: 0,
+    speed: 0,
+    damage: 0,
+    hp: 40,
+  })
+  const fired = lead.fired
+  go(w, IDLE, 0.5)
+  expect(lead.fired).toBeGreaterThan(fired)
+  expect(near.hp).toBeLessThan(40)
+  expect(lead.sideCool).toBeGreaterThan(0)
+})
+
+test("a handgun secondary fires on the move and swaps only the sidearm", () => {
+  const w = quiet()
+  w.props = []
+  const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
+  placeDrop(w, "pistol", 0.2, 0)
+  go(w, IDLE, 0.3)
+  expect(lead.gears).toContain("rifle")
+  expect(lead.gears).toContain("pistol")
+  const foe = spawnBody(w, { kind: "shambler", x: 4, y: 0, speed: 0, damage: 0, hp: 80 })
+  const fired = lead.fired
+  go(w, { ...IDLE, moveX: 1 }, 0.6)
+  expect(lead.fired).toBeGreaterThan(fired)
+  expect(foe.hp).toBeLessThan(80)
+  placeDrop(w, "magnum", lead.x + 0.2, lead.y)
+  go(w, IDLE, 0.3)
+  expect(lead.gears).toContain("rifle")
+  expect(lead.gears).toContain("magnum")
+  expect(lead.gears.includes("pistol")).toBe(false)
+})
+
+test("a new primary keeps the secondary", () => {
+  const w = quiet()
+  const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
+  placeDrop(w, "knife", 0.2, 0)
+  placeDrop(w, "smg", 0.3, 0)
+  go(w, IDLE, 0.4)
+  expect(lead.gears).toContain("smg")
+  expect(lead.gears).toContain("knife")
+  expect(lead.gears.includes("rifle")).toBe(false)
+  expect(lead.mobileFire).toBe(true)
 })

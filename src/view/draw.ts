@@ -1,6 +1,6 @@
 import { card } from "../content/catalog"
 import { BEAM_ARC, BEAM_R, CRAFT_WAIT, FLARE_ARM, FLARE_R, GAP_MAX, PATH_HOLD, beams, daylight, type Burst, type Inbound, type World } from "../sim/world"
-import { actor, cargo, groundTile, limbSprite, octo, scenery, vehicleArt, type Pose } from "./sprites"
+import { actor, cargo, groundTile, icon, limbSprite, octo, scenery, vehicleArt, type Pose } from "./sprites"
 
 export type Particle = {
   x: number
@@ -229,7 +229,7 @@ export function draw(
       continue
     }
     if (d.kind !== "gear") continue
-    const spr = scenery("crate")
+    const spr = d.skin === "item" ? icon(d.cardId) ?? scenery("crate") : scenery("crate")
     if (!spr) continue
     const fade = revealAlpha(w, 0, d.id)
     g.globalAlpha = fade < 1 ? fade : Math.floor(w.t * 4) % 2 === 0 ? 0.55 : 1
@@ -237,15 +237,18 @@ export function draw(
     g.globalAlpha = 1
   }
 
+  const bars: { x: number; y: number; hp: number | null; deploy: number | null }[] = []
   const bodies = w.bodies.filter((b) => b.boarded === null && b.alive).sort((a, c) => c.y - a.y)
   for (const b of bodies) {
     const x = X(b.x)
     const y = Y(b.y)
     g.globalAlpha = revealAlpha(w, b.id, 0)
+    const lift = airLift(b)
+    if (lift > 0) paintShadow(g, x, y, b)
     const veh = vehicleArt(b.kind)
     if (veh) {
       g.save()
-      g.translate(x, y - veh.body.height / 2)
+      g.translate(x, y - veh.body.height / 2 - lift)
       g.rotate(-b.hdg)
       const hull = w.vision === "thermal" ? heatOf(veh.body) : veh.body
       g.drawImage(hull, -hull.width / 2, -hull.height / 2)
@@ -268,27 +271,20 @@ export function draw(
       const pose: Pose = !b.mobileFire && b.deployNeed > 0 && b.deploy > 0.05 && !b.moved ? "dep" : b.moved ? "walk" : "idle"
       const frame = (Math.floor(w.t * 8) + b.id) % 2 === 0 && pose === "walk" ? "walk" : pose === "walk" ? "idle" : pose
       const spr = actor(b.kind, frame, b.face < 0)
-      const bob = b.air || b.kind === "drone" || b.kind === "scoot" ? -6 : 0
+      const bob = lift > 0 ? -lift : b.kind === "drone" || b.kind === "scoot" ? -6 : 0
       if (spr) {
         blit(g, w.vision === "thermal" ? heatOf(spr) : spr, x, y + bob)
         gash(g, spr, x, y + bob, b)
       }
       else {
         g.fillStyle = b.side === "player" ? "#c0c0c0" : b.side === "rust" ? "#3ecfc2" : "#6a3030"
-        g.fillRect(x - 2, y - 8, 4, 8)
+        g.fillRect(x - 2, y - 8 - lift, 4, 8)
       }
     }
-    if (!b.mobileFire && b.deployNeed > 0 && b.deploy < b.deployNeed) {
-      const k = Math.max(1, Math.round(8 * (b.deploy / b.deployNeed)))
-      g.fillStyle = "#e8e2d0"
-      g.fillRect(x - 5, y - 9, k, 1)
-    }
-    if (b.vehicle || b.kind === "sentry_gun") {
-      const frac = Math.max(0, b.hp / b.maxHp)
-      g.fillStyle = "#101010"
-      g.fillRect(x - 6, y - (b.vehicle ? 16 : 12), 12, 2)
-      g.fillStyle = hpColor(frac)
-      g.fillRect(x - 6, y - (b.vehicle ? 16 : 12), Math.round(12 * frac), 2)
+    const deploy =
+      !b.mobileFire && b.deployNeed > 0 && b.deploy < b.deployNeed ? Math.max(0, b.deploy / b.deployNeed) : null
+    if (b.side === "player" || deploy !== null) {
+      bars.push({ x, y: y - lift, hp: b.side === "player" ? Math.max(0, b.hp / b.maxHp) : null, deploy })
     }
     if (b.vehicle && b.seats > 0) {
       let n = 0
@@ -306,8 +302,9 @@ export function draw(
   g.lineWidth = 1
   for (const s of w.shots) {
     g.globalAlpha = Math.max(0.2, s.life / 0.08)
+    const lift = (s.lift || 0) * zoom
     g.beginPath()
-    g.moveTo(X(s.x), Y(s.y) - 6)
+    g.moveTo(X(s.x), Y(s.y) - 6 - lift)
     g.lineTo(X(s.tx), Y(s.ty) - 4)
     g.stroke()
   }
@@ -322,9 +319,10 @@ export function draw(
     const k = Math.min(1, lob.t / lob.T)
     const x = lob.x + (lob.tx - lob.x) * k
     const y = lob.y + (lob.ty - lob.y) * k
-    const arc = Math.sin(k * Math.PI) * 10
+    const from = (lob.lift || 0) * zoom
+    const arc = Math.sin(k * Math.PI) * (12 + from * 0.4)
     g.fillStyle = "#3a3a32"
-    g.fillRect(X(x) - 1, Y(y) - arc, 2, 2)
+    g.fillRect(X(x) - 1, Y(y) - from * (1 - k) - arc, 2, 2)
   }
 
   for (const s of w.strikes) {
@@ -361,6 +359,17 @@ export function draw(
 
   paintSky(g, w, bw, bh)
   paintNight(g, w, bw, bh, X, Y, zoom)
+  // Beam glow sits on top of the field; redraw casters so the rifle still reads.
+  for (const b of beams(w)) {
+    if (b.vehicle || b.boarded !== null) continue
+    const pose: Pose = !b.mobileFire && b.deployNeed > 0 && b.deploy > 0.05 && !b.moved ? "dep" : b.moved ? "walk" : "idle"
+    const frame = (Math.floor(w.t * 8) + b.id) % 2 === 0 && pose === "walk" ? "walk" : pose === "walk" ? "idle" : pose
+    const spr = actor(b.kind, frame, b.face < 0)
+    if (!spr) continue
+    const lift = airLift(b)
+    const bob = lift > 0 ? -lift : 0
+    blit(g, spr, X(b.x), Y(b.y) + bob)
+  }
 
   for (const s of w.passes) {
     const lead = s.t > 0 ? s.t * 10 : 0
@@ -380,6 +389,7 @@ export function draw(
   if (ditherSet.on && ditherSet.levels >= 2) grade(g, bw, bh)
 
   paintRemains(g, w, X, Y, zoom)
+  paintBars(g, bars)
 
   ctx.imageSmoothingEnabled = false
   ctx.drawImage(buf, 0, 0, width, height)
@@ -457,6 +467,41 @@ function paintDrones(g: CanvasRenderingContext2D, w: World, X: (x: number) => nu
   g.globalAlpha = 1
 }
 
+function airLift(b: { air: boolean; kind: string; vehicle: boolean }) {
+  if (!b.air) return 0
+  if (b.kind === "bomber") return 20
+  if (b.kind === "rocket" || b.kind === "gunship") return 18
+  if (b.kind === "gunboat" || b.kind === "copter") return 16
+  return 14
+}
+
+function paintShadow(g: CanvasRenderingContext2D, x: number, y: number, b: { kind: string; radius: number }) {
+  const rx = Math.max(4, Math.round(b.radius * 5 + 2))
+  const ry = Math.max(2, Math.round(rx * 0.45))
+  g.fillStyle = "rgba(10,8,6,0.38)"
+  g.beginPath()
+  g.ellipse(x + 1, y + 2, rx, ry, 0, 0, Math.PI * 2)
+  g.fill()
+}
+
+function paintBars(g: CanvasRenderingContext2D, bars: { x: number; y: number; hp: number | null; deploy: number | null }[]) {
+  for (const b of bars) {
+    const dep = b.deploy !== null
+    if (b.hp !== null) {
+      const by = dep ? b.y - 11 : b.y - 9
+      g.fillStyle = "#101010"
+      g.fillRect(b.x - 4, by, 8, 1)
+      g.fillStyle = hpColor(b.hp)
+      g.fillRect(b.x - 4, by, Math.round(8 * b.hp), 1)
+    }
+    if (dep) {
+      const k = Math.max(1, Math.round(8 * (b.deploy as number)))
+      g.fillStyle = "#e8e2d0"
+      g.fillRect(b.x - 4, b.y - 9, k, 1)
+    }
+  }
+}
+
 function paintBird(g: CanvasRenderingContext2D, x: number, y: number, ang: number) {
   g.save()
   g.translate(x, y)
@@ -505,7 +550,10 @@ function paintNight(
   Y: (y: number) => number,
   zoom: number,
 ) {
-  if (daylight(w.t + w.dayOff) >= 0.45 || w.vision !== "off") return
+  if (w.vision !== "off") return
+  const day = daylight(w.t + w.dayOff)
+  const dusk = Math.max(0, Math.min(1, (0.72 - day) / 0.55))
+  if (dusk <= 0) return
   if (!shade || shade.width !== bw || shade.height !== bh) {
     shade = document.createElement("canvas")
     shade.width = bw
@@ -515,30 +563,38 @@ function paintNight(
   if (!s) return
   s.setTransform(1, 0, 0, 1, 0, 0)
   s.clearRect(0, 0, bw, bh)
-  s.fillStyle = "rgba(0,0,0,.62)"
+  s.fillStyle = `rgba(0,0,0,${0.62 * dusk})`
   s.fillRect(0, 0, bw, bh)
   s.globalCompositeOperation = "destination-out"
   s.fillStyle = "#000"
   for (const b of beams(w)) {
     const x = X(b.x)
     const y = Y(b.y)
+    // Apex sits a step ahead so the cone does not erase the rifle on the caster.
+    const ax = x + Math.cos(-b.hdg) * 3
+    const ay = y + Math.sin(-b.hdg) * 3
     s.beginPath()
-    s.moveTo(x, y)
-    s.arc(x, y, BEAM_R * zoom, -b.hdg - BEAM_ARC, -b.hdg + BEAM_ARC)
+    s.moveTo(ax, ay)
+    s.arc(ax, ay, BEAM_R * zoom, -b.hdg - BEAM_ARC, -b.hdg + BEAM_ARC)
     s.closePath()
     s.fill()
   }
   s.globalCompositeOperation = "source-over"
   g.drawImage(shade, 0, 0)
-  g.fillStyle = "rgba(214,196,150,.14)"
-  for (const b of beams(w)) {
-    const x = X(b.x)
-    const y = Y(b.y)
-    g.beginPath()
-    g.moveTo(x, y)
-    g.arc(x, y, BEAM_R * zoom, -b.hdg - BEAM_ARC, -b.hdg + BEAM_ARC)
-    g.closePath()
-    g.fill()
+  const glow = 0.14 * dusk
+  if (glow > 0.01) {
+    g.fillStyle = `rgba(214,196,150,${glow})`
+    for (const b of beams(w)) {
+      const x = X(b.x)
+      const y = Y(b.y)
+      const ax = x + Math.cos(-b.hdg) * 3
+      const ay = y + Math.sin(-b.hdg) * 3
+      g.beginPath()
+      g.moveTo(ax, ay)
+      g.arc(ax, ay, BEAM_R * zoom, -b.hdg - BEAM_ARC, -b.hdg + BEAM_ARC)
+      g.closePath()
+      g.fill()
+    }
   }
 }
 

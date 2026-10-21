@@ -1,4 +1,4 @@
-import { STARTER, isHero, paidFor, priceOf, researchCost, type Hero } from "../content/catalog"
+import { DECK_CAP, STARTER, isHero, paidFor, priceOf, researchCost, type Hero } from "../content/catalog"
 
 const KEY = "warhead-tactics-profile"
 
@@ -6,12 +6,14 @@ export type Profile = {
   credits: number
   found: string[]
   known: string[]
+  /** Times researched; also the copy stock for the deck. */
+  depth: Record<string, number>
   wear: Record<string, number>
   heroes: Hero[]
 }
 
 export function fresh(): Profile {
-  return { credits: 0, found: [STARTER], known: [STARTER], wear: {}, heroes: [] }
+  return { credits: 0, found: [STARTER], known: [STARTER], depth: { [STARTER]: 1 }, wear: {}, heroes: [] }
 }
 
 export function load(): Profile {
@@ -20,8 +22,11 @@ export function load(): Profile {
     if (!raw) return fresh()
     const p = JSON.parse(raw) as Profile
     if (!Array.isArray(p.found) || !Array.isArray(p.known) || typeof p.credits !== "number") return fresh()
+    p.found = [...p.found]
+    p.known = [...p.known]
     if (!p.known.includes(STARTER)) p.known.push(STARTER)
     if (!p.found.includes(STARTER)) p.found.push(STARTER)
+    for (const id of p.known) if (!p.found.includes(id)) p.found.push(id)
     p.credits = Math.max(0, Math.floor(p.credits))
     const listed = p.heroes
     p.heroes = []
@@ -39,6 +44,18 @@ export function load(): Profile {
         if (n > 0) p.wear[id] = n
       }
     }
+    const rawDepth = p.depth
+    p.depth = {}
+    if (rawDepth && typeof rawDepth === "object") {
+      for (const id of Object.keys(rawDepth)) {
+        const n = Math.floor(Number(rawDepth[id]))
+        if (n > 0) p.depth[id] = n
+      }
+    }
+    for (const id of p.known) {
+      if (!p.depth[id]) p.depth[id] = 1
+    }
+    if (!p.depth[STARTER]) p.depth[STARTER] = 1
     return p
   } catch {
     return fresh()
@@ -46,13 +63,24 @@ export function load(): Profile {
 }
 
 export function restart(p: Profile) {
-  const n = fresh()
-  p.credits = n.credits
-  p.found = n.found
-  p.known = n.known
+  p.credits = 0
+  p.found = [STARTER]
+  p.known = [STARTER]
+  p.depth = { [STARTER]: 1 }
   p.wear = {}
   p.heroes = []
   save(p)
+}
+
+/** Banks new finds. Returns ids newly added to the research list. */
+export function bankFinds(p: Profile, found: string[]): string[] {
+  const added: string[] = []
+  for (const id of found) {
+    if (isHero(id) || p.found.includes(id)) continue
+    p.found.push(id)
+    added.push(id)
+  }
+  return added
 }
 
 const HERO_CHASSIS = new Set(["cell_rifle", "medic", "engr", "relay"])
@@ -125,11 +153,20 @@ export function applyWear(p: Profile, deck: string[]) {
   for (const id of Object.keys(copies)) p.wear[id] = (p.wear[id] ?? 0) + copies[id]
 }
 
+/** How many copies the deck may take (research depth). */
+export function stockOf(p: Profile, id: string) {
+  if (isHero(id)) return 1
+  return p.depth[id] ?? 0
+}
+
 export function research(p: Profile, id: string) {
-  if (p.known.includes(id) || !p.found.includes(id)) return false
-  const cost = researchCost(id)
+  if (!p.found.includes(id) || isHero(id)) return false
+  const depth = p.depth[id] ?? 0
+  if (depth >= DECK_CAP) return false
+  const cost = researchCost(id, depth)
   if (p.credits < cost) return false
   p.credits -= cost
-  p.known.push(id)
+  p.depth[id] = depth + 1
+  if (!p.known.includes(id)) p.known.push(id)
   return true
 }

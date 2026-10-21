@@ -2,6 +2,28 @@
 
 Newest first. Older → `docs/changelog-archive.md`.
 
+- **2026-10-21 Design:** FPV hits harder and wider so the inbound reads as a real strike. `src/sim/world.ts`
+- **2026-10-21 Design:** FPV is an over-the-horizon inbound like CAS, priced above a blade, and rides the JTAC and laser stack. `src/content/catalog.ts` `src/sim/world.ts`
+- **2026-10-21 Fix:** Purge and Haul finish marks read 8/8 and 3/3; no progress chatter. `src/sim/world.ts`
+- **2026-10-21 Fix:** the field HUD keeps only the clock; lost, drop, and bounty pills are gone. `src/main.ts` `index.html`
+- **2026-10-21 Feat:** weapons have primary and secondary hands; combat picks by range and fire rules; handguns, SMG, shotguns, and rail join the roster. `src/content/catalog.ts` `src/sim/world.ts`
+- **2026-10-21 Fix:** a blade uses its reach on flesh and no longer aims the lamp at gun-range ghosts. `src/sim/world.ts`
+- **2026-10-21 Fix:** night beam glow no longer sits on the Lead's rifle; soldier gun pixels read on the mud. `src/view/draw.ts` `src/view/sprites.ts`
+- **2026-10-21 Design:** research stock is economy-gated: no per-card max, copies stop at the deck cap, free-deploy cards still pay a rifle-floor research step. `src/content/catalog.ts` `src/meta/profile.ts`
+- **2026-10-21 Feat:** research depth sets deck copies; each next research of a find costs another step and reads MORE; extract lists new research. `src/meta/profile.ts` `src/main.ts`
+- **2026-10-21 Feat:** pending research is a count on the deck; the sheet groups by kind and puts affordable finds first. `src/main.ts` `index.html`
+- **2026-10-21 Fix:** melee bites a hull's skin, and a 0 hp hull dies instead of pinning the pack. `src/sim/world.ts`
+- **2026-10-21 Fix:** a ruin stutter no longer stacks scrapes into a quick kill. `src/sim/world.ts`
+- **2026-10-21 Feat:** guns take optic, grip, mag, brace, and muzzle cards; a new gun dumps those parts onto the mud as themselves, not crates. `src/content/catalog.ts` `src/sim/world.ts` `src/view/draw.ts`
+- **2026-10-21 Feat:** gunship, rocket, and bomber are toolbar call-ins: crate pickup, press spawns a circling sortie bird, one at a time, cooldown from the press. Gunboat stays leashed. `src/content/catalog.ts` `src/sim/world.ts`
+- **2026-10-21 Fix:** a bite scrapes a hull, and the tank, plow, and HEX walkers hold more steel. `src/sim/world.ts` `src/content/catalog.ts`
+- **2026-10-21 Feat:** airframes circle the Lead aloft with a ground shadow, pull toward a fight, and keep their guns; rocket and bomber lob from the air. `src/sim/world.ts` `src/view/draw.ts`
+- **2026-10-21 Fix:** a hull scrapes cover for light wear instead of a hard hit. `src/sim/world.ts`
+- **2026-10-21 Fix:** night shade eases in with dusk instead of snapping on. `src/view/draw.ts`
+- **2026-10-21 Fix:** a cooling toolbar slot drains, dims its icon, and shows a gold count. `src/main.ts` `index.html`
+- **2026-10-21 Fix:** friendly health bars share the deploy tick's slot and draw above night shade. The day cycle runs a bit longer. `src/view/draw.ts` `src/sim/world.ts`
+- **2026-10-21 Feat:** a thin health bar sits above each living friendly. Hostiles stay unmarked. `src/view/draw.ts`
+- **2026-10-21 Fix:** extract banks field finds for research only; the buy grid stays gated on researched cards. `src/sim/world.ts` `src/meta/profile.ts`
 - **2026-10-20 Feat:** a JTAC tightens CAS and radio, and the gunship, rocket, and bomber leash like the gunboat for a short sortie then leave. A laser paints the next of those strikes. FPV stays separate. `src/content/catalog.ts`
 - **2026-10-19 Feat:** a unit, vehicle, or gear that extracts pays back its deployment cost. `src/sim/world.ts`
 - **2026-10-19 Design:** a wipe banks none of the run's credits. Extract banks the haul and pays 40 more. `src/sim/world.ts`
@@ -18,23 +40,3 @@ Newest first. Older → `docs/changelog-archive.md`.
 - **2026-10-19 Fix:** the field dither is drawn at screen resolution, so the smallest scale is a couple of pixels instead of a blown-up game pixel. `src/view/draw.ts`
 - **2026-10-19 Fix:** a dead soldier is his figure laid flat, not the standing deploy pose. `src/view/draw.ts`
 - **2026-10-19 Fix:** a flesh soldier's beam points along his shot, and stays there between rounds. `src/sim/world.ts`
-- **2026-10-19 Fix:** the mud is drawn on the same whole-pixel grid as the sprites, so it no longer shimmers while the camera moves. `src/view/draw.ts`
-- **2026-10-19 Feat:** the debug dither can posterize the field and set size, pattern, ink, blend, and whether the grain sits on the mud or the whole picture. `src/view/draw.ts`
-- **2026-10-19 Feat:** a stash may offer one named soldier a run. Extract keeps them, death removes a veteran, and redeploying that person costs 80. `src/sim/world.ts`
-- **2026-10-19 Fix:** a drop with no gun is issued one. A soldier gets a rifle. A hull or a follower gets a light mount. `src/sim/world.ts`
-- **2026-10-19 Feat:** at night a flesh soldier on foot throws a beam along his facing. The beam sees, and is seen, at day range. Androids carry no light. NVG and thermal shut the beams. `src/sim/world.ts`
-- **2026-10-19 Fix:** a body that has not joined holds at the drop and shoots, instead of charging the nearest hostile. `src/sim/world.ts`
-- **2026-10-19 Feat:** deploying the same card again raises its price, and a round that leaves it out cools that price by one step. `src/meta/profile.ts`
-- **2026-10-18 Fix:** soldiers and hostiles stay inside the field. `src/sim/world.ts`
-- **2026-10-18 Fix:** a deeper field waits out its own LZ, and each step is a smaller jump in health and horde rate. The squad plants to shoot instead of chasing a crate across the map. `src/sim/world.ts`
-- **2026-10-18 Fix:** the gunboat is an unmanned leashed assault copter. Nobody boards it. `src/content/catalog.ts`
-- **2026-10-18 Fix:** the gunboat is an assault copter. The UGV follows and shoots with nobody aboard. `src/content/catalog.ts`
-- **2026-10-18 Feat:** the rest of the Warhead roster is in. Blades, bows, AT, jetpack, litter, filter, EWAR, the later Rust, the remaining hulls, and hawk, mid, assassin, and operator. `src/content/catalog.ts`
-- **2026-10-18 Feat:** a rifle, MG, sniper, grenade, and mortar are gear. They fit a soldier and replace the gun. The Lead starts with a rifle. `src/content/catalog.ts`
-- **2026-10-18 Feat:** cover is trees, ruins, wire, wrecks, posts, and teeth, each with its own silhouette. `src/view/sprites.ts`
-- **2026-10-18 Feat:** Roller, Kite, Slab, HEX line, HEX siege, recondog, copter, hunter-killer, stun, FPV, exo, marsh, and a stash hold. `src/content/catalog.ts`
-- **2026-10-18 Fix:** the deck is the airdrop queue. A turret stays mounted until the hull is badly hurt. A crewed hull shoves an empty one, a light hull skirts cover, and a body left outside the craft does not hold the win. `src/sim/world.ts`
-- **2026-10-18 Fix:** thermal keeps the figure. Heat tints the sprite instead of covering it. `src/view/draw.ts`
-- **2026-10-18 Feat:** goathead, crowhead, Forge, Wisp, engineer, relay, light hulls, HEX scout, Tract, Coil, Flake, thermite, EMP, smoke, and relic finds. `src/content/catalog.ts`
-- **2026-10-18 Feat:** weather, night, NVG, thermal, and a CAS gunship pass. `src/sim/world.ts`
-- **2026-10-18 Fix:** salvage, intel, and samples are ground pickups. Upgrade drops stay crates. `src/sim/world.ts`
