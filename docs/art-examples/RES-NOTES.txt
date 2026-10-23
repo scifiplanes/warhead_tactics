@@ -1,0 +1,8 @@
+Resolution ladder (soldier idle + rifle):
+  ~10×10  current F (game today; buffer ÷3–4)
+  16×14   light bump — helmet/visor, short rifle parts
+  24×17   recommended sweet spot — coat mass, optic/mag readable
+  32×19   high detail — vest/pack, stock, still procedural drab
+
+Field mock (22): gold bar = current@×5; grey bar = 24px@×3 (similar screen height).
+If buffer stays ÷4, a 24px sprite reads ~6× taller in world than today unless zoom/camera adjusts.

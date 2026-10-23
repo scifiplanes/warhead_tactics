@@ -1,0 +1,12 @@
+LOCKED 2026-10-22 — 161 high-angle stack
+Shipped: src/view/sprites.ts SOLDIER + HOLD + ZOMBIE/DOG/PIG/MUTANT/WALKER/DRONE
+
+Rules:
+- foreshortened coat mass (161 R2 language), small vs hulls
+- muted face, stand-C / stride legs
+- friendlies: gun stamp in pocket (x≈9,y≈7)
+- flesh NPCs: same stack, dirtier, no gun wedge
+- walkers/drones: foreshortened mass + optic, not flat cubes
+
+Examples: 161 poses, 175–177 gear/vehicles, 178 NPCs, 179 props
+Reject: coat-door 32, funny 10 blob, front mannequin, tall stick props

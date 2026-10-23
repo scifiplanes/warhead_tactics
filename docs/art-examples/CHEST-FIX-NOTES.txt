@@ -1,0 +1,7 @@
+Chest hole fix:
+BAD: gun ASCII carved into coat rows (missing right chest)
+GOOD: solid coat+arms first, gun overlay starts past coat edge (ox=19)
+
+100: hole vs solid rifle/sniper/mg
+102: hero lineup solid chest
+103: body alone then +gun

@@ -1,0 +1,4 @@
+110 left→right: HUGE(10) | N1(6) | N2(7+taper) | N3(6 short) | N4(5 lean)
+113: HUGE vs N2 vs N3 large
+Recommend N2 (balanced) or N3 (less coat mass / shorter).
+Solid coat, gun outside — no hole.

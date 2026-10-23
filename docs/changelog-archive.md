@@ -2,6 +2,24 @@
 
 Moved from `docs/changelog.md` when that file outgrows its cap.
 
+- **2026-10-21 Feat:** a thin health bar sits above each living friendly. Hostiles stay unmarked. `src/view/draw.ts`
+- **2026-10-21 Fix:** extract banks field finds for research only; the buy grid stays gated on researched cards. `src/sim/world.ts` `src/meta/profile.ts`
+- **2026-10-20 Feat:** a JTAC tightens CAS and radio, and the gunship, rocket, and bomber leash like the gunboat for a short sortie then leave. A laser paints the next of those strikes. FPV stays separate. `src/content/catalog.ts`
+- **2026-10-19 Feat:** a unit, vehicle, or gear that extracts pays back its deployment cost. `src/sim/world.ts`
+- **2026-10-19 Feat:** opening the deck rolls a seed, so the next field is not the last one. `src/main.ts`
+- **2026-10-19 Design:** extraction comes in on a large brick-shaped cargo VTOL with ducted fans, not a helicopter. `src/view/sprites.ts`
+- **2026-10-19 Design:** a wipe banks none of the run's credits. Extract banks the haul and pays 40 more. `src/sim/world.ts`
+- **2026-10-19 Fix:** a section with no living unit loses. A hull or a sentry left behind does not keep the run. `src/sim/world.ts`
+- **2026-10-19 Fix:** a field find fades in on the way to its spot. The drone is only for cards from the deck. `src/sim/world.ts`
+- **2026-10-19 Fix:** airdrops fall a walk apart, and the next one waits longer. `src/sim/world.ts`
+- **2026-10-19 Feat:** an octacopter cargo drone carries each airdrop in. A soldier or a hull hangs on its cables and is set down directly, and the empty drone climbs away. Gear still comes in a crate. `src/view/draw.ts`
+- **2026-10-19 Feat:** each field rolls a ground, a bearing, a pressure, and a sky pair. A deeper field rolls them again. If the Lead is down, the stick passes to a soldier. `src/sim/world.ts`
+- **2026-10-19 Fix:** the weather and night chip is gone. Rain and night still play on the field. `index.html`
+- **2026-10-19 Fix:** the field runs well past the LZ, so the edge is not sitting on the objective. Hordes still walk in from just off camera. `src/sim/world.ts`
+- **2026-10-19 Design:** the field opens on the tuned dither: 32 levels, scale 8, strength 31, cut 4, Bayer mud laid over the picture. `src/view/draw.ts`
+- **2026-10-19 Fix:** the field dither is drawn at screen resolution, so the smallest scale is a couple of pixels instead of a blown-up game pixel. `src/view/draw.ts`
+- **2026-10-19 Fix:** a dead soldier is his figure laid flat, not the standing deploy pose. `src/view/draw.ts`
+- **2026-10-19 Fix:** a flesh soldier's beam points along his shot, and stays there between rounds. `src/sim/world.ts`
 - **2026-10-19 Fix:** the mud is drawn on the same whole-pixel grid as the sprites, so it no longer shimmers while the camera moves. `src/view/draw.ts`
 - **2026-10-19 Feat:** the debug dither can posterize the field and set size, pattern, ink, blend, and whether the grain sits on the mud or the whole picture. `src/view/draw.ts`
 - **2026-10-19 Feat:** a stash may offer one named soldier a run. Extract keeps them, death removes a veteran, and redeploying that person costs 80. `src/sim/world.ts`

@@ -1,0 +1,4 @@
+70: old stiff idle | stand_A | stand_B (reco) | stand_C | low-ready
+71: old weird walk | new 4-frame cycle
+73: stand_B + tight military walk (preferred)
+74: field — gold=old, grey=new

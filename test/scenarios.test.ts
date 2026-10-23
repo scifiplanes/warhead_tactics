@@ -1,5 +1,17 @@
 import { expect, test } from "vitest"
-import { CARDS, DECK_CAP, FORM_REPEAT, STARTER, callSign, card, hostile, priceOf, researchCost, rollHero } from "../src/content/catalog"
+import {
+  CARDS,
+  DECK_CAP,
+  FORM_REPEAT,
+  NAMED_SHELLS,
+  STARTER,
+  callSign,
+  card,
+  hostile,
+  priceOf,
+  researchCost,
+  rollHero,
+} from "../src/content/catalog"
 import { applyWear, bankFinds, deployCost, fresh, research, restart, settleHeroes, stockOf } from "../src/meta/profile"
 import { policy } from "../src/bot/policy"
 import {
@@ -14,6 +26,7 @@ import {
   discover,
   makeRun,
   offerHero,
+  offerHoldout,
   placeDrop,
   spawnBody,
   step,
@@ -28,6 +41,7 @@ function quiet(seed = 1, deck: string[] = []) {
   w.pathAt = 1e9
   w.stashAt = 1e9
   w.nextField = 1e9
+  w.sleepers = []
   w.autoBoard = false
   w.dayOff = 0
   w.weather = "clear"
@@ -721,6 +735,7 @@ test("field loot is not an upgrade drop", () => {
   const w = quiet()
   w.nextField = 0
   w.hidden = []
+  w.holdoutOffered = true
   step(w, IDLE, 1 / 30)
   expect(w.inbound.some((f) => f.loot)).toBe(false)
   const loot = w.drops.find((d) => d.kind === "loot")
@@ -841,6 +856,7 @@ test("every gun attachment has a slot and a price", () => {
     "long",
     "reflex",
     "therm_sight",
+    "lsight",
     "grip",
     "agrip",
     "stub",
@@ -888,7 +904,7 @@ test("deck cards wait in the airdrop queue", () => {
 })
 
 test("airdrops land a walk apart", () => {
-  const w = makeRun(3, ["plate", "mg", "stim"])
+  const w = makeRun(3, ["aegis", "medic", "forge"])
   w.nextHorde = 1e9
   w.nextField = 1e9
   w.flareAt = 1e9
@@ -905,6 +921,62 @@ test("airdrops land a walk apart", () => {
   const spots = [...w.inbound, ...w.drops.filter((d) => !d.taken && d.kind !== "loot")]
   expect(spots.length).toBeGreaterThanOrEqual(2)
   expect(Math.hypot(spots[0].x - spots[1].x, spots[0].y - spots[1].y)).toBeGreaterThan(18)
+})
+
+test("the lead deploys wearing deck gear", () => {
+  const w = quiet(1, ["plate", "lsight"])
+  const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
+  expect(lead.gears).toContain("rifle")
+  expect(lead.gears).toContain("plate")
+  expect(lead.gears).toContain("lsight")
+  expect(lead.range).toBeCloseTo(9 * 1.08, 5)
+  expect(lead.cooldown).toBeCloseTo(0.45 * 0.9, 5)
+  expect(w.deckQueue).toEqual([])
+  expect(card("lsight").slot).toBe("optic")
+})
+
+test("a unit airdrops wearing deck gear", () => {
+  const w = quiet()
+  w.deckQueue = ["plate", "lsight", "medic"]
+  w.deckPay = [20, 20, 40]
+  w.nextDrop = 0
+  go(w, IDLE, 0.15)
+  expect(w.inbound).toHaveLength(1)
+  expect(w.inbound[0].cardId).toBe("medic")
+  expect(w.inbound[0].kit.map((k) => k.id).sort()).toEqual(["lsight", "plate"])
+  go(w, IDLE, 3.2)
+  const medic = w.bodies.find((b) => b.kind === "medic")!
+  expect(medic.gears).toContain("rifle")
+  expect(medic.gears).toContain("plate")
+  expect(medic.gears).toContain("lsight")
+  expect(medic.range).toBeCloseTo(9 * 1.08, 5)
+  expect(medic.cooldown).toBeCloseTo(0.45 * 0.9, 5)
+  expect(w.drops.some((d) => d.cardId === "plate" || d.cardId === "lsight")).toBe(false)
+})
+
+test("deck gear peels onto the unit ahead of it", () => {
+  const w = quiet()
+  w.deckQueue = ["medic", "plate", "lsight"]
+  w.deckPay = [40, 20, 20]
+  w.nextDrop = 0
+  go(w, IDLE, 0.15)
+  expect(w.inbound[0].kit.map((k) => k.id).sort()).toEqual(["lsight", "plate"])
+  go(w, IDLE, 3.2)
+  const medic = w.bodies.find((b) => b.kind === "medic")!
+  expect(medic.gears).toContain("plate")
+  expect(medic.gears).toContain("lsight")
+})
+
+test("orphan body gear without a unit still lands as a crate", () => {
+  const w = quiet()
+  w.deckQueue = ["plating"]
+  w.deckPay = [35]
+  w.nextDrop = 0
+  go(w, IDLE, 0.15)
+  expect(w.inbound[0].cardId).toBe("plating")
+  expect(w.inbound[0].kit).toEqual([])
+  go(w, IDLE, 3.2)
+  expect(w.drops.some((d) => !d.taken && d.cardId === "plating" && d.skin === "crate")).toBe(true)
 })
 
 test("kills and loot pay credits, and a find stays locked until research", () => {
@@ -1112,14 +1184,14 @@ test("a discovered card fades into its spot", () => {
 })
 
 test("an inbound drop flares before it lands", () => {
-  const w = quiet(1, ["plate"])
+  const w = quiet(1, ["aegis"])
   w.nextDrop = 0.02
   go(w, IDLE, 0.1)
-  expect(w.inbound.some((f) => f.cardId === "plate")).toBe(true)
-  expect(w.drops.some((d) => d.cardId === "plate")).toBe(false)
+  expect(w.inbound.some((f) => f.cardId === "aegis")).toBe(true)
+  expect(w.drops.some((d) => d.cardId === "aegis")).toBe(false)
   go(w, IDLE, 3.2)
-  expect(w.drops.some((d) => d.cardId === "plate")).toBe(true)
-  expect(w.inbound.some((f) => f.cardId === "plate")).toBe(false)
+  expect(w.drops.some((d) => d.cardId === "aegis")).toBe(true)
+  expect(w.inbound.some((f) => f.cardId === "aegis")).toBe(false)
 })
 
 test("a squad loss reads KIA and an enemy reads DOWN", () => {
@@ -1845,15 +1917,75 @@ test("seeded autoplay prints a balance line", () => {
   console.log("GATE autoplay ok")
 })
 
+test("goathead and crowhead can bring a composite screen", () => {
+  const goat = quiet(2)
+  goat.rng = () => 0
+  spawnBody(goat, { kind: "goathead", x: 12, y: 0, speed: 0, screen: true })
+  expect(goat.bodies.filter((b) => b.kind === "shambler").length).toBeGreaterThanOrEqual(2)
+
+  const crow = quiet(3)
+  crow.rng = () => 0
+  spawnBody(crow, { kind: "crowhead", x: 12, y: 0, speed: 0, screen: true })
+  expect(crow.bodies.filter((b) => b.kind === "doghead").length).toBeGreaterThanOrEqual(2)
+})
+
+test("a holdout survivor is a field find that joins without a hero id", () => {
+  const w = quiet(5)
+  const body = offerHoldout(w, 6, 0)
+  expect(w.holdoutOffered).toBe(true)
+  expect(body.name).toBe("HOLDOUT")
+  expect(body.heroId).toBe("")
+  expect(body.inSection).toBe(false)
+  const lead = w.bodies.find((b) => b.id === w.commander)!
+  lead.x = body.x
+  lead.y = body.y
+  w.ax = body.x
+  w.ay = body.y
+  go(w, IDLE, 0.2)
+  expect(body.inSection).toBe(true)
+  const kept = fresh()
+  w.phase = "win"
+  settleHeroes(kept, w)
+  expect(kept.heroes).toHaveLength(0)
+})
+
+test("a rust sleeper hull wakes into a hostile and leaves salvage", () => {
+  const w = quiet(6)
+  w.sleepers = [{ id: 99, hull: "ugv", wake: "tract", x: 4, y: 0, awake: false, hold: 0 }]
+  const lead = w.bodies.find((b) => b.id === w.commander)!
+  lead.x = 4
+  lead.y = 0
+  w.ax = 4
+  w.ay = 0
+  go(w, IDLE, 1.4)
+  expect(w.sleepers[0].awake).toBe(true)
+  expect(w.bodies.some((b) => b.kind === "tract" && b.alive)).toBe(true)
+  expect(w.drops.some((d) => d.cardId === "salvage") || w.loot > 0 || w.credits > 0).toBe(true)
+})
+
+test("coil bloom fog amalgam still field as rust", () => {
+  const w = quiet(8)
+  for (const kind of ["coil", "bloom", "fog", "amalgam"] as const) {
+    const b = spawnBody(w, { kind, x: 0, y: 0, speed: 0 })
+    expect(b.side).toBe("rust")
+    expect(hostile(kind).side).toBe("rust")
+  }
+})
+
 test("a stash hero is a named soldier the campaign can keep", () => {
   let n = 0
   const rng = () => ((n = n + 1) * 17 % 100) / 100
   const first = rollHero(rng, [])
+  expect(NAMED_SHELLS.some((shell) => shell.id === first.id)).toBe(true)
   n = 0
   expect(rollHero(rng, [])).toEqual(first)
   n = 0
   rollHero(rng, [])
   expect(rollHero(rng, [first.name]).name).not.toBe(first.name)
+  const all = NAMED_SHELLS.map((shell) => shell.name)
+  n = 0
+  const filler = rollHero(rng, all)
+  expect(NAMED_SHELLS.every((shell) => shell.name !== filler.name)).toBe(true)
 
   const a = quiet(4)
   const b = quiet(4)

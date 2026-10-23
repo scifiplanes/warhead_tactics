@@ -2,6 +2,22 @@
 
 Newest first. Older → `docs/changelog-archive.md`.
 
+- **2026-10-23 Fix:** tracers and night beams leave the rotated gun tip (deploy / aim-up), not a flat body offset. `src/view/sprites.ts` `src/view/draw.ts` `src/sim/world.ts`
+- **2026-10-23 Feat:** soft modules on every foot hostile, hover sway, drawn brace tip, hit/stun impulse, soft+biped together. `src/view/anim.ts` `docs/design/anim.md`
+- **2026-10-23 Feat:** stretch plant loop for biped feet and soft tips, hips→chest→head lag, idle breath; hostiles and infantry. `src/view/anim.ts` `docs/design/anim.md`
+- **2026-10-23 Feat:** foot modes (deploy/fire/stun/crawl/limp), soft tip goals, hull bob and turret lag, shared gun muzzle reach. `src/view/anim.ts` `src/view/draw.ts` `src/content/muzzle.ts` `docs/design/anim.md`
+- **2026-10-23 Fix:** tracers and night beams leave from the gun tip, not the head. `src/sim/world.ts` `src/view/draw.ts`
+- **2026-10-23 Fix:** gun wedge rotates to `hdg` toward the fire target, not a short-range guess. `src/sim/world.ts` `src/view/sprites.ts` `src/view/anim.ts` `src/view/draw.ts`
+- **2026-10-23 Feat:** feet and soft tips plant toward nearby ruins, wrecks, posts, and teeth. `src/view/anim.ts` `src/view/draw.ts`
+- **2026-10-23 Feat:** view foot system — 161 layers, path gait, soft chains on weird hostiles/walkers, sagging airdrop cables. `src/view/anim.ts` `src/view/sprites.ts` `src/view/draw.ts`
+- **2026-10-22 Fix:** corpses, parts, and other ground marks draw under living bodies. `src/view/draw.ts`
+- **2026-10-22 Feat:** deck body gear outfits the Lead at step-off and rides later unit or hull airdrops already fitted; laser sight joins the optic slot. `src/sim/world.ts` `src/content/catalog.ts` `src/view/sprites.ts`
+- **2026-10-22 Feat:** composite goat/crow screens, holdout field finds, named shells Vos/Sten/Tave, distinct coil/bloom/fog/amalgam stacks, and rust sleeper hulls. `src/sim/world.ts` `src/content/catalog.ts` `src/view/sprites.ts`
+- **2026-10-22 Fix:** ruins are high-angle foundation chunks (L/U/slab/container) with top face and thickness — not flat wall strips. `src/view/sprites.ts`
+- **2026-10-22 Design:** ruins and props use 161 high-angle mass — foreshortened trees/wire/wrecks/posts/teeth/crate, contact blobs, edge shade. `src/view/sprites.ts`
+- **2026-10-22 Design:** lock 161 high-angle stack for infantry and NPCs — foreshortened coat mass, ferals dirtier, walkers/drones same language; gun wedge on friendlies. `src/view/sprites.ts`
+- **2026-10-22 Design:** richer mud (wet patches, ruts, ash), 1px edge shade on soldier and hull bodies, ground contact shadows for infantry/vehicles/props, heavier crater/burn/splat marks, distinct hull families (truck, MBT, MLRS, HEX, UGV, MRAP), walker single dark optic, dirtier corpse palette. `src/view/sprites.ts` `src/view/draw.ts`
+- **2026-10-22 Design:** soldier sprites keep the old proportions with a muted face; the held gun is stamped from the loadout so rifle, SMG, shotgun, sniper, rail, MG, handgun, lob, bow, and blade read apart, and optic, mag, brace, grip, and muzzle mark the gun. `src/view/sprites.ts` `src/view/draw.ts`
 - **2026-10-21 Design:** FPV hits harder and wider so the inbound reads as a real strike. `src/sim/world.ts`
 - **2026-10-21 Design:** FPV is an over-the-horizon inbound like CAS, priced above a blade, and rides the JTAC and laser stack. `src/content/catalog.ts` `src/sim/world.ts`
 - **2026-10-21 Fix:** Purge and Haul finish marks read 8/8 and 3/3; no progress chatter. `src/sim/world.ts`
@@ -22,21 +38,3 @@ Newest first. Older → `docs/changelog-archive.md`.
 - **2026-10-21 Fix:** night shade eases in with dusk instead of snapping on. `src/view/draw.ts`
 - **2026-10-21 Fix:** a cooling toolbar slot drains, dims its icon, and shows a gold count. `src/main.ts` `index.html`
 - **2026-10-21 Fix:** friendly health bars share the deploy tick's slot and draw above night shade. The day cycle runs a bit longer. `src/view/draw.ts` `src/sim/world.ts`
-- **2026-10-21 Feat:** a thin health bar sits above each living friendly. Hostiles stay unmarked. `src/view/draw.ts`
-- **2026-10-21 Fix:** extract banks field finds for research only; the buy grid stays gated on researched cards. `src/sim/world.ts` `src/meta/profile.ts`
-- **2026-10-20 Feat:** a JTAC tightens CAS and radio, and the gunship, rocket, and bomber leash like the gunboat for a short sortie then leave. A laser paints the next of those strikes. FPV stays separate. `src/content/catalog.ts`
-- **2026-10-19 Feat:** a unit, vehicle, or gear that extracts pays back its deployment cost. `src/sim/world.ts`
-- **2026-10-19 Design:** a wipe banks none of the run's credits. Extract banks the haul and pays 40 more. `src/sim/world.ts`
-- **2026-10-19 Design:** extraction comes in on a large brick-shaped cargo VTOL with ducted fans, not a helicopter. `src/view/sprites.ts`
-- **2026-10-19 Feat:** opening the deck rolls a seed, so the next field is not the last one. `src/main.ts`
-- **2026-10-19 Fix:** a section with no living unit loses. A hull or a sentry left behind does not keep the run. `src/sim/world.ts`
-- **2026-10-19 Fix:** a field find fades in on the way to its spot. The drone is only for cards from the deck. `src/sim/world.ts`
-- **2026-10-19 Fix:** airdrops fall a walk apart, and the next one waits longer. `src/sim/world.ts`
-- **2026-10-19 Feat:** an octacopter cargo drone carries each airdrop in. A soldier or a hull hangs on its cables and is set down directly, and the empty drone climbs away. Gear still comes in a crate. `src/view/draw.ts`
-- **2026-10-19 Feat:** each field rolls a ground, a bearing, a pressure, and a sky pair. A deeper field rolls them again. If the Lead is down, the stick passes to a soldier. `src/sim/world.ts`
-- **2026-10-19 Fix:** the weather and night chip is gone. Rain and night still play on the field. `index.html`
-- **2026-10-19 Fix:** the field runs well past the LZ, so the edge is not sitting on the objective. Hordes still walk in from just off camera. `src/sim/world.ts`
-- **2026-10-19 Design:** the field opens on the tuned dither: 32 levels, scale 8, strength 31, cut 4, Bayer mud laid over the picture. `src/view/draw.ts`
-- **2026-10-19 Fix:** the field dither is drawn at screen resolution, so the smallest scale is a couple of pixels instead of a blown-up game pixel. `src/view/draw.ts`
-- **2026-10-19 Fix:** a dead soldier is his figure laid flat, not the standing deploy pose. `src/view/draw.ts`
-- **2026-10-19 Fix:** a flesh soldier's beam points along his shot, and stays there between rounds. `src/sim/world.ts`

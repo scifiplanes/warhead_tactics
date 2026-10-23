@@ -1,0 +1,5 @@
+Waist hole was taper (CCCCCC under CCCCCCC) + CL.LC hip gap.
+FIX: solid coat column same width to hem; legs only in STAND below.
+120: BAD | A(7 solid) | B(6 solid) | C(7 short) | A body only
+121: BAD vs A vs B large
+Recommend A.

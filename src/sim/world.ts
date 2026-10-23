@@ -11,6 +11,7 @@ import {
   type Side,
   type Stats,
 } from "../content/catalog"
+import { gunMuzzle } from "../content/muzzle"
 
 export type Commands = {
   moveX: number
@@ -107,7 +108,7 @@ export type Gib = {
 }
 
 export type Slot = { id: string; charges: number; cd: number; cdMax: number }
-export type Shot = { x: number; y: number; tx: number; ty: number; life: number; lift: number }
+export type Shot = { x: number; y: number; tx: number; ty: number; life: number; lift: number; from?: number }
 export type Bolt = { x: number; y: number; vx: number; vy: number; dmg: number; life: number; side: Side }
 export type Lob = { x: number; y: number; tx: number; ty: number; t: number; T: number; dmg: number; aoe: number; side: Side; lift: number }
 export type Smoke = { x: number; y: number; r: number; t: number }
@@ -153,7 +154,17 @@ export type Drop = {
   skin?: "crate" | "item"
 }
 
-export type Inbound = { x: number; y: number; t: number; cardId: string; loot: boolean; cost: number }
+export type KitItem = { id: string; cost: number }
+
+export type Inbound = {
+  x: number
+  y: number
+  t: number
+  cardId: string
+  loot: boolean
+  cost: number
+  kit: KitItem[]
+}
 export type Reveal = { x: number; y: number; tx: number; ty: number; t: number; dur: number; bodyId: number; dropId: number }
 
 export type World = {
@@ -217,6 +228,8 @@ export type World = {
   autoBoardT: number
   deckQueue: string[]
   deckPay: number[]
+  /** Body gear waiting to ride the next unit or hull airdrop. */
+  gearHold: KitItem[]
   kitPay: number
   hash: Map<string, Body[]>
   shots: Shot[]
@@ -255,8 +268,20 @@ export type World = {
   tags: Tag[]
   heroes: Record<string, Hero>
   heroOffered: boolean
+  holdoutOffered: boolean
+  sleepers: Sleeper[]
   buried: string[]
   veteranIds: string[]
+}
+
+export type Sleeper = {
+  id: number
+  hull: string
+  wake: string
+  x: number
+  y: number
+  awake: boolean
+  hold: number
 }
 
 export type Tag = { x: number; y: number; text: string; kind: string; life: number; slot: number }
@@ -271,6 +296,8 @@ export type Spawn = {
   inSection?: boolean
   side?: Side
   pack?: boolean
+  /** Horde-only: goat/crow may bring a melee screen. */
+  screen?: boolean
   hp?: number
   speed?: number
   range?: number
@@ -465,8 +492,7 @@ export function makeRun(seed: number, deck: string[], opts: RunOpts = {}): World
   w.pathAt = 36
   w.stashAt = 22
   w.commander = spawnBody(w, { kind: STARTER, x: 0, y: 0, inSection: true }).id
-  const lead = w.bodies.find((b) => b.id === w.commander)
-  if (lead) fitGun(w, lead, "rifle")
+  outfitLead(w)
   labels(w)
   grantThermal(w)
   grantNvg(w)
@@ -581,9 +607,10 @@ export function spawnBody(w: World, spec: Spawn): Body {
   if (host?.pack && spec.pack !== false) {
     for (let i = 1; i < host.pack; i++) {
       const a = (i / host.pack) * Math.PI * 2
-      spawnBody(w, { ...spec, x: spec.x + Math.cos(a) * 0.9, y: spec.y + Math.sin(a) * 0.9, pack: false })
+      spawnBody(w, { ...spec, x: spec.x + Math.cos(a) * 0.9, y: spec.y + Math.sin(a) * 0.9, pack: false, screen: false })
     }
   }
+  if (spec.screen) screenPack(w, spec.kind, spec.x, spec.y)
   return b
 }
 
@@ -695,6 +722,7 @@ function blank(seed: number): World {
     autoBoardT: 0,
     deckQueue: [],
     deckPay: [],
+    gearHold: [],
     kitPay: 0,
     hash: new Map(),
     shots: [],
@@ -733,6 +761,8 @@ function blank(seed: number): World {
     diffHp: 1,
     heroes: {},
     heroOffered: false,
+    holdoutOffered: false,
+    sleepers: [],
     buried: [],
     veteranIds: [],
   }
@@ -747,6 +777,7 @@ function tick(w: World, cmd: Commands, dt: number) {
   drops(w, dt)
   reveals(w, dt)
   pickup(w)
+  sleepers(w, dt)
   horde(w, dt)
   rebuild(w)
   ai(w, dt)
@@ -1243,8 +1274,8 @@ function reveals(w: World, dt: number) {
   w.reveals = live
 }
 
-function signal(w: World, cardId: string, x: number, y: number, loot = false, cost = 0) {
-  w.inbound.push({ x, y, t: DROP_WARN, cardId, loot, cost })
+function signal(w: World, cardId: string, x: number, y: number, loot = false, cost = 0, kit: KitItem[] = []) {
+  w.inbound.push({ x, y, t: DROP_WARN, cardId, loot, cost, kit })
 }
 
 function landInbound(w: World, dt: number) {
@@ -1254,21 +1285,147 @@ function landInbound(w: World, dt: number) {
   for (const f of due) {
     if (f.loot) {
       w.drops.push({ id: w.nextId++, cardId: f.cardId, x: f.x, y: f.y, bodyId: -1, kind: "loot", taken: false, cost: 0 })
-    } else placeDrop(w, f.cardId, f.x, f.y, f.cost)
+    } else {
+      const drop = placeDrop(w, f.cardId, f.x, f.y, f.cost)
+      if (f.kit.length && drop.bodyId) {
+        const body = w.bodies.find((b) => b.id === drop.bodyId)
+        if (body) dress(w, body, f.kit)
+      }
+    }
     burst(w, f.x, f.y, "dust")
   }
+}
+
+function isBodyGear(w: World, cardId: string): boolean {
+  if (w.heroes[cardId]) return false
+  const row = CARDS.find((c) => c.id === cardId)
+  return !!row && row.kind === "gear" && row.fits !== "section"
+}
+
+function hostChassis(w: World, cardId: string): ReturnType<typeof card> {
+  const hero = w.heroes[cardId]
+  return hero ? card(hero.chassis) : card(cardId)
+}
+
+function gearFitsHost(w: World, hostId: string, gearId: string): boolean {
+  const host = hostChassis(w, hostId)
+  const g = card(gearId)
+  if (g.fits === "section" || g.ability) return false
+  const veh = host.kind === "vehicle" || !!host.stats?.vehicle
+  if (g.gun || g.slot) return !veh && !host.android && !host.follow
+  if (g.fits === "vehicle") return veh
+  if (g.fits === "deploy") return !veh
+  if (g.fits === "unit" || g.fits === "any") return !veh
+  return !veh
+}
+
+/** Lead steps off wearing leading body gear; non-fitting gear waits in hold. */
+function outfitLead(w: World) {
+  const lead = w.bodies.find((b) => b.id === w.commander)
+  if (!lead) return
+  fitGun(w, lead, "rifle")
+  const kit: KitItem[] = []
+  while (w.deckQueue.length && isBodyGear(w, w.deckQueue[0])) {
+    const id = w.deckQueue.shift()!
+    const cost = w.deckPay.shift() ?? 0
+    if (gearFitsHost(w, STARTER, id)) kit.push({ id, cost })
+    else w.gearHold.push({ id, cost })
+  }
+  dress(w, lead, kit)
+}
+
+function takeFitting(w: World, hostId: string): KitItem[] {
+  const kit: KitItem[] = []
+  const rest: KitItem[] = []
+  for (const g of w.gearHold) {
+    if (gearFitsHost(w, hostId, g.id)) kit.push(g)
+    else rest.push(g)
+  }
+  w.gearHold = rest
+  while (w.deckQueue.length && isBodyGear(w, w.deckQueue[0])) {
+    const next = w.deckQueue[0]
+    if (!gearFitsHost(w, hostId, next)) break
+    kit.push({ id: w.deckQueue.shift()!, cost: w.deckPay.shift() ?? 0 })
+  }
+  return kit
+}
+
+/** Drain leading body gear into hold, then take the next drop (unit wears held + following kit). */
+function pullDrop(w: World): { cardId: string; cost: number; kit: KitItem[] } | null {
+  while (w.deckQueue.length && isBodyGear(w, w.deckQueue[0])) {
+    w.gearHold.push({ id: w.deckQueue.shift()!, cost: w.deckPay.shift() ?? 0 })
+  }
+  if (!w.deckQueue.length) {
+    const lead = w.bodies.find((b) => b.id === w.commander && b.alive && b.inSection)
+    if (lead) dress(w, lead, takeFitting(w, STARTER))
+    const orphan = w.gearHold.shift()
+    if (!orphan) return null
+    return { cardId: orphan.id, cost: orphan.cost, kit: [] }
+  }
+  const cardId = w.deckQueue.shift()!
+  const cost = w.deckPay.shift() ?? 0
+  const hero = w.heroes[cardId]
+  const kind = hero ? "unit" : card(cardId).kind
+  if (kind !== "unit" && kind !== "vehicle") return { cardId, cost, kit: [] }
+  return { cardId, cost, kit: takeFitting(w, cardId) }
+}
+
+function loadout(w: World, b: Body, id: string, cost = 0): boolean {
+  const c = card(id)
+  if (c.ability || c.fits === "section") return false
+  if (c.gun) {
+    if (b.vehicle || b.android || b.follow) return false
+    fitGun(w, b, id, cost)
+    return true
+  }
+  if (c.slot) {
+    if (!canTakeAttach(b)) return false
+    const prior = b.gears.find((have) => card(have).slot === c.slot)
+    if (prior) shedAttach(w, b, prior)
+    b.gears.push(id)
+    if (cost > 0) b.gearPay[id] = cost
+    reapplyGun(b)
+    return true
+  }
+  if (c.fits === "vehicle") {
+    if (!b.vehicle) return false
+  } else if (c.fits === "deploy") {
+    if (b.vehicle || b.deployNeed <= 0) return false
+  } else if (b.vehicle) return false
+  if (b.gears.includes(id)) return false
+  b.gears.push(id)
+  if (cost > 0) b.gearPay[id] = cost
+  if (c.armorAdd) b.armor = Math.min(0.75, b.armor + c.armorAdd)
+  if (c.speedMul) b.speed *= c.speedMul
+  if (c.hpMul) {
+    const gain = b.maxHp * (c.hpMul - 1)
+    b.maxHp = Math.round(b.maxHp * c.hpMul)
+    b.hp = Math.min(b.maxHp, b.hp + gain)
+  }
+  if (c.ramMul) b.ramMul *= c.ramMul
+  if (c.ramSelfMul) b.ramSelf *= c.ramSelfMul
+  if (c.healAdd) b.heal += c.healAdd
+  return true
+}
+
+function dress(w: World, b: Body, kit: KitItem[]) {
+  const guns = kit.filter((k) => card(k.id).gun)
+  const body = kit.filter((k) => !card(k.id).gun && !card(k.id).slot)
+  const bits = kit.filter((k) => card(k.id).slot)
+  let n = 0
+  for (const item of [...guns, ...body, ...bits]) if (loadout(w, b, item.id, item.cost)) n++
+  if (n) toast(w, n === 1 ? `${card(kit[0].id).name} fitted` : `Kit ×${n}`, "gear")
 }
 
 function drops(w: World, dt: number) {
   field(w, dt)
   landInbound(w, dt)
-  if (!w.deckQueue.length) return
+  if (!w.deckQueue.length && !w.gearHold.length) return
   w.nextDrop -= dt
   if (w.nextDrop > 0) return
   w.nextDrop = DROP_EVERY
-  const id = w.deckQueue.shift()
-  const cost = w.deckPay.shift() ?? 0
-  if (!id) return
+  const next = pullDrop(w)
+  if (!next) return
   const held = [
     ...w.inbound.filter((f) => !f.loot),
     ...w.drops.filter((d) => !d.taken && d.kind !== "loot"),
@@ -1286,7 +1443,7 @@ function drops(w: World, dt: number) {
     if (held.some((s) => Math.hypot(s.x - x, s.y - y) < 22)) continue
     break
   }
-  signal(w, id, x, y, false, cost)
+  signal(w, next.cardId, x, y, false, next.cost, next.kit)
 }
 
 function field(w: World, dt: number) {
@@ -1306,6 +1463,10 @@ function field(w: World, dt: number) {
   if (w.hidden.length && w.rng() < 0.45) {
     const id = w.hidden.shift()
     if (id) discover(w, id, x, y)
+    return
+  }
+  if (!w.holdoutOffered && w.rng() < 0.18) {
+    offerHoldout(w, x, y)
     return
   }
   const loot = (["salvage", "intel", "sample"] as const)[(w.rng() * 3) | 0]
@@ -1358,6 +1519,7 @@ function pickup(w: World) {
     d.taken = true
     w.dropsTaken++
     if (body.heroId) toast(w, `${body.name} joined`, "unit")
+    else if (body.name) toast(w, `${body.name} joined`, "unit")
     else {
       noteFind(w, d)
       toast(w, `${card(d.cardId).name} joined`, d.kind === "vehicle" ? "veh" : "unit")
@@ -1401,9 +1563,32 @@ export function offerHero(w: World): Hero | null {
   const hero = rollHero(w.rng, taken)
   w.heroes[hero.id] = hero
   placeDrop(w, hero.id, w.stashX + 1.6, w.stashY)
-  toast(w, `${hero.name} spotted`, "unit")
+  const tag = hero.tag ? ` · ${hero.tag}` : ""
+  toast(w, `${hero.name}${tag} spotted`, "unit")
   return hero
 }
+
+export function offerHoldout(w: World, x: number, y: number): Body {
+  w.holdoutOffered = true
+  const drop = placeDrop(w, STARTER, x, y)
+  const body = w.bodies.find((b) => b.id === drop.bodyId)!
+  body.name = "HOLDOUT"
+  tag(w, x, y, "HOLDOUT", "find")
+  toast(w, "Holdout spotted", "unit")
+  return body
+}
+
+const SCREEN: Record<string, { kind: string; chance: number; n: [number, number] }> = {
+  goathead: { kind: "shambler", chance: 0.4, n: [2, 3] },
+  crowhead: { kind: "doghead", chance: 0.3, n: [2, 3] },
+}
+
+const SLEEPER_HULLS: [string, string][] = [
+  ["ugv", "tract"],
+  ["mrap", "slab"],
+  ["jeep", "roller"],
+  ["apc", "walker"],
+]
 
 function arm(w: World, b: Body) {
   if (b.damage > 0 && b.range > 0) return
@@ -1638,7 +1823,56 @@ function horde(w: World, dt: number) {
   if (alive >= HOSTILE_CAP) return
   const kind = hostileKind(w)
   const at = spawnAt(w)
-  spawnBody(w, { kind, x: clamp(at.x, -MAP + 1, MAP - 1), y: clamp(at.y, -MAP + 1, MAP - 1) })
+  const x = clamp(at.x, -MAP + 1, MAP - 1)
+  const y = clamp(at.y, -MAP + 1, MAP - 1)
+  spawnBody(w, { kind, x, y, screen: true })
+}
+
+function screenPack(w: World, kind: string, x: number, y: number) {
+  const screen = SCREEN[kind]
+  if (!screen || w.rng() >= screen.chance) return
+  let alive = 0
+  for (const b of w.bodies) if (b.alive && b.side !== "player") alive++
+  const n = screen.n[0] + ((w.rng() * (screen.n[1] - screen.n[0] + 1)) | 0)
+  for (let i = 0; i < n; i++) {
+    if (alive >= HOSTILE_CAP) break
+    const a = (i / Math.max(1, n)) * Math.PI * 2 + w.rng()
+    spawnBody(w, {
+      kind: screen.kind,
+      x: clamp(x + Math.cos(a) * (1.4 + w.rng()), -MAP + 1, MAP - 1),
+      y: clamp(y + Math.sin(a) * (1.4 + w.rng()), -MAP + 1, MAP - 1),
+      screen: false,
+    })
+    alive++
+  }
+}
+
+const SLEEPER_HOLD = 1.2
+
+function sleepers(w: World, dt: number) {
+  for (const s of w.sleepers) {
+    if (s.awake) continue
+    if (!touch(w, s.x, s.y)) {
+      s.hold = 0
+      continue
+    }
+    s.hold += dt
+    if (s.hold < SLEEPER_HOLD) continue
+    s.awake = true
+    spawnBody(w, { kind: s.wake, x: s.x, y: s.y })
+    w.drops.push({
+      id: w.nextId++,
+      cardId: "salvage",
+      x: s.x + 2.4,
+      y: s.y + 2.4,
+      bodyId: -1,
+      kind: "loot",
+      taken: false,
+      cost: 0,
+    })
+    tag(w, s.x, s.y, "AWAKE", "fire")
+    toast(w, "Rust sleeper wakes", "veh")
+  }
 }
 
 function hostileKind(w: World) {
@@ -1745,7 +1979,7 @@ function combat(w: World, dt: number) {
       } else if (dist - tgt.radius > b.range + 0.25) continue
     } else if (dist > (b.side === "player" ? b.range + 1.2 : b.range) * sight(w, lit)) continue
     if (b.side !== "player" && b.range > 2 && smoked(w, tgt)) continue
-    if (lamp) b.hdg = Math.atan2(tgt.y - b.y, tgt.x - b.x)
+    aimAt(b, tgt)
     if (!ready || b.cool > 0) continue
     fireWeapon(w, b, tgt, {
       range: b.range,
@@ -1770,7 +2004,6 @@ function combatHands(w: World, b: Body, dt: number, pri: string | undefined, sec
   }
   // damage<=0 silences fire and lamp (tests and disarms), without stripping fitted gear.
   if (b.damage <= 0 || !canFire(b)) return
-  const lamp = b.side === "player" && !b.android && !b.vehicle
   const blind = sun(w) < NIGHT && w.vision === "off"
   const aimSpan = Math.max(
     priW ? (priW.range <= 2 && !priW.lob ? priW.range + 0.8 : priW.range + 1.2) : 0,
@@ -1781,7 +2014,7 @@ function combatHands(w: World, b: Body, dt: number, pri: string | undefined, sec
   if (!tgt) return
   const lit = blind && (inBeam(w, tgt.x, tgt.y) || inBeam(w, b.x, b.y))
   const sightMul = sight(w, lit)
-  if (lamp) b.hdg = Math.atan2(tgt.y - b.y, tgt.x - b.x)
+  aimAt(b, tgt)
   let pick: { id: string; w: Wield; side: boolean } | null = null
   if (sec && secW && wieldReady(b, secW, true) && wieldReach(b, tgt, secW, sightMul)) {
     pick = { id: sec, w: secW, side: true }
@@ -1793,10 +2026,17 @@ function combatHands(w: World, b: Body, dt: number, pri: string | undefined, sec
   fireWeapon(w, b, tgt, pick.w, pick.side, lit)
 }
 
+/** Point facing and heading at the fire target (gun art and beams follow hdg). */
+function aimAt(b: Body, tgt: { x: number; y: number }) {
+  b.hdg = Math.atan2(tgt.y - b.y, tgt.x - b.x)
+  if (Math.abs(tgt.x - b.x) > 0.02) b.face = tgt.x < b.x ? -1 : 1
+}
+
 function fireWeapon(w: World, b: Body, tgt: Body, stats: Wield, side: boolean, lit: boolean) {
   if (side) b.sideCool = stats.cooldown
   else b.cool = stats.cooldown
   b.fired++
+  aimAt(b, tgt)
   if (b.side === "player") tag(w, b.x, b.y, "FIRE", "fire")
   let mul = b.gears.includes("filter") ? 1 : WEATHER[w.weather].fire
   if (casHull(b) && jtacLive(w)) mul *= 1.25
@@ -1823,14 +2063,15 @@ function fireWeapon(w: World, b: Body, tgt: Body, stats: Wield, side: boolean, l
   b.pierce = stats.pierce
   b.lob = stats.lob
   b.aoe = stats.aoe
+  const [mx, my] = muzzleOf(b)
   if (b.side !== "player" && stats.range > 2) {
-    const dx = tgt.x - b.x
-    const dy = tgt.y - b.y
+    const dx = tgt.x - mx
+    const dy = tgt.y - my
     const d = Math.hypot(dx, dy) || 1
     const spd = 14
     w.bolts.push({
-      x: b.x,
-      y: b.y,
+      x: mx,
+      y: my,
       vx: (dx / d) * spd,
       vy: (dy / d) * spd,
       dmg: stats.damage * mul,
@@ -1842,8 +2083,8 @@ function fireWeapon(w: World, b: Body, tgt: Body, stats: Wield, side: boolean, l
     const tint = b.side === "rust" ? "oxide" : b.side === "feral" ? "blood" : "dust"
     if (stats.lob) {
       w.lobs.push({
-        x: b.x,
-        y: b.y,
+        x: mx,
+        y: my,
         tx: tgt.x,
         ty: tgt.y,
         t: 0,
@@ -1854,7 +2095,7 @@ function fireWeapon(w: World, b: Body, tgt: Body, stats: Wield, side: boolean, l
         lift: b.air ? 1.4 : 0,
       })
     } else {
-      pushShot(w, b.x, b.y, tgt.x, tgt.y, b.air ? 1.4 : 0)
+      pushShot(w, mx, my, tgt.x, tgt.y, b.air ? 1.4 : 0, b.id)
       let hit = stats.damage * mul
       if (tgt.vehicle && stats.range <= 2) hit *= meleeHull(tgt.armor)
       hurt(w, tgt, hit, tint, b)
@@ -2721,8 +2962,15 @@ function ages(w: World, dt: number) {
   w.tags = w.tags.filter((t) => t.life > 0)
 }
 
-function pushShot(w: World, x: number, y: number, tx: number, ty: number, lift = 0) {
-  w.shots.push({ x, y, tx, ty, life: 0.08, lift })
+function pushShot(w: World, x: number, y: number, tx: number, ty: number, lift = 0, from?: number) {
+  w.shots.push({ x, y, tx, ty, life: 0.08, lift, from })
+}
+
+/** World point at the held gun tip — along hdg from the body (hit/bolt spawn). View tracers use stamp tip. */
+function muzzleOf(b: Body): [number, number] {
+  const r =
+    b.vehicle || b.air ? Math.max(0.5, b.radius * 0.85) : gunMuzzle(gunId(b))
+  return [b.x + Math.cos(b.hdg) * r, b.y + Math.sin(b.hdg) * r]
 }
 
 function pierce(w: World, b: Body, first: Body, tint: Burst["tint"]) {
@@ -2979,7 +3227,11 @@ function labels(w: World) {
   else if (w.lzOn) w.banner = "REACH LZ"
   else if (w.stashOn && Math.hypot(at.x - w.stashX, at.y - w.stashY) <= STASH_R)
     w.banner = `STASH ${Math.max(0, Math.ceil(STASH_HOLD - w.stashHold))}s`
-  else w.banner = ""
+  else {
+    const hull = w.sleepers.find((s) => !s.awake && Math.hypot(at.x - s.x, at.y - s.y) <= PICKUP + 1.5)
+    if (hull) w.banner = `HULL ${Math.max(0, Math.ceil(SLEEPER_HOLD - hull.hold))}s`
+    else w.banner = ""
+  }
 }
 
 function feet(w: World): Body[] {
@@ -3064,8 +3316,32 @@ function rollField(w: World) {
   w.stashY = c * off * side + s * along
   w.props = []
   w.marshes = []
+  w.sleepers = []
   layMarsh(w)
   scatter(w)
+  laySleepers(w)
+}
+
+function laySleepers(w: World) {
+  const n = 1 + (w.rng() < 0.35 ? 1 : 0)
+  for (let i = 0; i < n; i++) {
+    let x = 0
+    let y = 0
+    let ok = false
+    for (let t = 0; t < 12; t++) {
+      x = (w.rng() * 2 - 1) * 28
+      y = (w.rng() * 2 - 1) * 28
+      if (Math.hypot(x, y) < 10) continue
+      if (!clearMark(w, x, y)) continue
+      if (hitProp(w, x, y, 1.4)) continue
+      if (w.sleepers.some((s) => Math.hypot(s.x - x, s.y - y) < 10)) continue
+      ok = true
+      break
+    }
+    if (!ok) continue
+    const [hull, wake] = SLEEPER_HULLS[(w.rng() * SLEEPER_HULLS.length) | 0]
+    w.sleepers.push({ id: w.nextId++, hull, wake, x, y, awake: false, hold: 0 })
+  }
 }
 
 function skyPair(ground: string, rng: () => number): [Weather, Weather] {

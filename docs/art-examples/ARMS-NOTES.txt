@@ -1,0 +1,7 @@
+130/131 left→right arms on body A:
+  nub     — old side dots (weird)
+  sleeve  — short 3-row sleeves both sides
+  aim     — left tucked, right forearm to gun
+  twohand — both hands toward rifle
+  cradle  — stock shoulder + support under barrel  ← likely best
+  profile — long near-arm, far arm hint

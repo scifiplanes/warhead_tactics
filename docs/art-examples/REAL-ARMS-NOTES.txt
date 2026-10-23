@@ -1,0 +1,3 @@
+140: stub | L1 (L-arm) | L2 (rifle hold) | L3 (thick side) | L4 (elbows out) | L5 (long thin connected)
+142: limbs only — must read shoulder→elbow→hand
+Recommend L2 or L3 or L5 — continuous limbs, not nubs.

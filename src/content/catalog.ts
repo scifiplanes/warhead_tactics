@@ -496,6 +496,14 @@ export const CARDS: CardDef[] = [
     rangeMul: 1.2,
     spot: 1,
   }),
+  attach({
+    id: "lsight",
+    name: "LASER SIGHT",
+    desc: "Optic on the gun. Fire rate +11%. Range +8%.",
+    slot: "optic",
+    rateMul: 0.9,
+    rangeMul: 1.08,
+  }),
   attach({ id: "grip", name: "GRIP", desc: "Handle on the gun. Fire rate +11%.", slot: "grip", rateMul: 0.9 }),
   attach({
     id: "agrip",
@@ -1244,7 +1252,7 @@ const HERO_GIVEN = ["KADE", "BEX", "ILSA", "DANNO", "PIKE", "WREN", "ODILE", "SA
 const HERO_FAMILY = ["VOS", "HARROW", "FREY", "STEN", "CORR", "RASK", "BROK", "TAVE", "KELL", "MOOR", "VANE", "PYKE"]
 const HERO_CHASSIS = ["cell_rifle", "medic", "engr", "relay"] as const
 const HERO_GIFTS = ["tough", "fast", "keen", "patch"] as const
-const HERO_GUNS = ["rifle", "mg", "sniper"] as const
+const HERO_GUNS = ["rifle", "mg", "sniper", "bow", "gren"] as const
 
 export type Hero = {
   id: string
@@ -1252,7 +1260,15 @@ export type Hero = {
   chassis: (typeof HERO_CHASSIS)[number]
   gift: (typeof HERO_GIFTS)[number]
   gun: (typeof HERO_GUNS)[number]
+  tag?: string
 }
+
+/** Named shells from the original roster — offered before random names. No Ulus strain chrome. */
+export const NAMED_SHELLS: readonly Hero[] = [
+  { id: "hero:vos", name: "KADE VOS", chassis: "cell_rifle", gift: "keen", gun: "sniper", tag: "GHOST" },
+  { id: "hero:sten", name: "MOTHER STEN", chassis: "engr", gift: "tough", gun: "gren", tag: "SPADE" },
+  { id: "hero:tave", name: "WREN TAVE", chassis: "cell_rifle", gift: "fast", gun: "bow", tag: "QUIET" },
+]
 
 export const HERO_PRICE = 80
 
@@ -1261,6 +1277,11 @@ export function isHero(id: string) {
 }
 
 export function rollHero(rng: () => number, taken: string[] = []): Hero {
+  const free = NAMED_SHELLS.filter((shell) => !taken.includes(shell.name))
+  if (free.length) {
+    const shell = free[(rng() * free.length) | 0]
+    return { ...shell }
+  }
   const chassis = HERO_CHASSIS[(rng() * HERO_CHASSIS.length) | 0]
   const gift = HERO_GIFTS[(rng() * HERO_GIFTS.length) | 0]
   const gun = HERO_GUNS[(rng() * HERO_GUNS.length) | 0]
@@ -1268,7 +1289,7 @@ export function rollHero(rng: () => number, taken: string[] = []): Hero {
   const cap = HERO_GIVEN.length * HERO_FAMILY.length
   for (let i = 0; i < cap; i++) {
     name = `${HERO_GIVEN[(rng() * HERO_GIVEN.length) | 0]} ${HERO_FAMILY[(rng() * HERO_FAMILY.length) | 0]}`
-    if (!taken.includes(name)) break
+    if (!taken.includes(name) && !NAMED_SHELLS.some((shell) => shell.name === name)) break
   }
   if (taken.includes(name)) name = `${name} ${taken.length + 1}`
   const id = `hero:${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
@@ -1324,6 +1345,7 @@ const PRICE: Record<string, number> = {
   long: 30,
   reflex: 20,
   therm_sight: 30,
+  lsight: 20,
   grip: 20,
   agrip: 20,
   stub: 20,

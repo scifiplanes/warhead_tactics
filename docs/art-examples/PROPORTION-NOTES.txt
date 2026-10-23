@@ -1,0 +1,7 @@
+32px proportion pass:
+  LEFT gold / first in 30: previous chibi-32 (big head, short legs, squat coat)
+  A: adult stack — head ~1/7 height, longer legs, coat mid-mass
+  B: leaner — smaller head, narrower torso, more height in legs
+  C: profile-lean — rifle forward, pack K, same tall stack
+
+Recommend A or B. C if you want more side-view read on the field.
