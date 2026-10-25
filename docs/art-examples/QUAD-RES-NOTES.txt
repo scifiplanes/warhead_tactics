@@ -1,0 +1,30 @@
+×4 resolution ladder (investigate only — not shipped)
+
+Bars: gold = shipped 1× (~16×13), grey = authored 2× (~32×26), orange = authored 4× (~64×40+).
+
+Sheets:
+  192  ladder 1/2/4 same display height — detail gain at equal footprint
+  193  ladder native preview (1×@×8, 2×@×4, 4×@×2) — pixel size visible
+  194  1× vs 4× both ×4 native — 4× is large
+  195  NN×4 of current vs authored 4× — must re-author
+  196  hero large same-height
+  197  poses — top 1×, bottom 4×
+  198  gun kits same-height
+  199  field 1:1 — 4× is ~4× taller in world (unusable without camera change)
+  200  field same world height — 4× drawn at ×1 vs 1× at ×4
+  201  soldier/shambler/doghead
+  202  ruin foundation
+  203  field ladder 1/2/4 same world height
+
+Cost vs 2×:
+  - ~4× pixel authorship (every row/HOLD/prop/vehicle/anim offset)
+  - ASCII rows get long; bake cost and canvas memory grow
+  - On mobile ÷3–4 buffer, 4× sprites at 1:1 dominate the frame (199)
+  - At matched world height (200/203), 4× buys softer edges, separate gun parts,
+    coat folds — but the field dither/mud grain stays coarse relative to the figure
+  - Sweet spot from earlier RES-NOTES was ~24px; 4× (~64) is past that unless
+    the whole buffer scale drops (e.g. ÷2 or 1:1 screen) so those pixels read
+
+If applied with today's buffer: must draw at 1/4 scale or zoom out hard.
+
+RE-AUTHORED: see 204/205 and REAUTH-NOTES.txt (hand pixels, not block NN).

@@ -76,7 +76,11 @@ export function policy(w: World): Commands {
     let tx = 0
     let ty = 0
     for (const mark of [...w.drops, ...w.inbound]) {
-      if (w.pathOn && Math.hypot(mark.x - w.pathX, mark.y - w.pathY) <= FLARE_R) continue
+      if (
+        w.pathOn &&
+        w.paths.some((p) => p.open && Math.hypot(mark.x - p.x, mark.y - p.y) <= FLARE_R)
+      )
+        continue
       const loot = "loot" in mark ? mark.loot : mark.kind === "loot"
       const d = Math.hypot(mark.x - sx, mark.y - sy)
       if (d > (loot ? 18 : 56) || d >= best) continue

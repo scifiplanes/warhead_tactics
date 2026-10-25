@@ -70,35 +70,13 @@ const BRACE: SoftSpec = {
   goal: "cover",
 }
 
+// Soft only for bodies whose stamp does not already read as whole — hover/billow/trail
+// tips floated as detached pixels beside drones and walkers (color was irrelevant).
 const SOFT: Record<string, SoftSpec> = {
-  coil: { count: 1, segs: 5, rest: 0.38, color: "#2a3838", tip: "#3ecfc2", ay: 0, spread: 0, grav: 0.35, goal: "seek" },
+  coil: { count: 1, segs: 5, rest: 0.38, color: "#2a3838", tip: "#6e6e6e", ay: 0, spread: 0, grav: 0.35, goal: "seek" },
   reach: { count: 2, segs: 5, rest: 0.5, color: "#24302c", tip: "#5a6a64", ay: 0.15, spread: 0.7, grav: 0.55, goal: "seek" },
-  fog: { count: 3, segs: 3, rest: 0.42, color: "#7a9898", tip: "#9ab8b8", ay: 0.1, spread: 0.9, grav: -0.2, goal: "billow" },
-  bloom: { count: 3, segs: 4, rest: 0.36, color: "#3a4840", tip: "#6a8870", ay: -0.05, spread: 1.1, grav: 0.55, goal: "root" },
-  amalgam: { count: 2, segs: 3, rest: 0.34, color: "#243034", tip: "#3ecfc2", ay: 0, spread: 0.55, grav: 0.5, goal: "trail" },
-  mast: { count: 1, segs: 4, rest: 0.4, color: "#2a3838", tip: "#8aa0a0", ay: 0.35, spread: 0, grav: -0.35, goal: "billow" },
-  walker: { count: 2, segs: 3, rest: 0.32, color: "#2a2824", tip: "#1e2820", ay: -0.05, spread: 0.5, grav: 0.6, goal: "gait" },
-  tract: { count: 2, segs: 3, rest: 0.32, color: "#2a3434", tip: "#3ecfc2", ay: -0.05, spread: 0.5, grav: 0.55, goal: "gait" },
-  dray: { count: 2, segs: 3, rest: 0.34, color: "#22201c", tip: "#6a6860", ay: -0.05, spread: 0.55, grav: 0.6, goal: "gait" },
-  kite: { count: 2, segs: 3, rest: 0.3, color: "#4a4840", tip: "#3ecfc2", ay: 0.1, spread: 0.8, grav: 0.2, goal: "billow" },
-  roller: { count: 2, segs: 3, rest: 0.3, color: "#2e2c28", tip: "#6a6860", ay: -0.02, spread: 0.45, grav: 0.55, goal: "gait" },
-  slab: { count: 2, segs: 3, rest: 0.36, color: "#2a2824", tip: "#5a5850", ay: -0.04, spread: 0.55, grav: 0.65, goal: "gait" },
-  rust_plow: { count: 2, segs: 3, rest: 0.34, color: "#242c28", tip: "#5a6a60", ay: -0.04, spread: 0.5, grav: 0.6, goal: "gait" },
+  bloom: { count: 3, segs: 4, rest: 0.36, color: "#3a3832", tip: "#5a564e", ay: -0.05, spread: 1.1, grav: 0.55, goal: "root" },
   post: { count: 2, segs: 4, rest: 0.38, color: "#2a2820", tip: "#8a8680", ay: 0.1, spread: 0.8, grav: 0.5, goal: "root" },
-  cluster: { count: 3, segs: 3, rest: 0.28, color: "#3a4848", tip: "#3ecfc2", ay: 0.05, spread: 1, grav: -0.15, goal: "hover" },
-  ball: { count: 2, segs: 3, rest: 0.3, color: "#1a1c1e", tip: "#5a5854", ay: 0.02, spread: 0.6, grav: 0.4, goal: "trail" },
-  flake: { count: 1, segs: 3, rest: 0.26, color: "#3a4444", tip: "#3ecfc2", ay: 0, spread: 0, grav: 0.45, goal: "trail" },
-  drone: { count: 2, segs: 3, rest: 0.26, color: "#2a2824", tip: "#3ecfc2", ay: 0.08, spread: 0.7, grav: -0.12, goal: "hover" },
-  scoot: { count: 2, segs: 3, rest: 0.24, color: "#2a2824", tip: "#3ecfc2", ay: 0.06, spread: 0.65, grav: -0.1, goal: "hover" },
-  copter: { count: 2, segs: 3, rest: 0.28, color: "#3a3834", tip: "#8a8680", ay: 0.1, spread: 0.75, grav: -0.18, goal: "hover" },
-  hawk: { count: 2, segs: 3, rest: 0.28, color: "#2a2420", tip: "#6a3030", ay: 0.1, spread: 0.7, grav: -0.16, goal: "hover" },
-  mid: { count: 2, segs: 3, rest: 0.26, color: "#2a3034", tip: "#3ecfc2", ay: 0.08, spread: 0.7, grav: -0.14, goal: "hover" },
-  shambler: { count: 1, segs: 3, rest: 0.28, color: "#3a342e", tip: "#2a2420", ay: 0.06, spread: 0, grav: 0.55, goal: "trail" },
-  doghead: { count: 1, segs: 3, rest: 0.26, color: "#3a342e", tip: "#2a2018", ay: 0.04, spread: 0, grav: 0.5, goal: "trail" },
-  pighead: { count: 2, segs: 3, rest: 0.3, color: "#3a342e", tip: "#6a5848", ay: 0.05, spread: 0.4, grav: 0.6, goal: "trail" },
-  goathead: { count: 1, segs: 3, rest: 0.28, color: "#3a3830", tip: "#6a6058", ay: 0.05, spread: 0, grav: 0.5, goal: "trail" },
-  crowhead: { count: 2, segs: 3, rest: 0.26, color: "#2a2824", tip: "#6a3030", ay: 0.08, spread: 0.55, grav: 0.25, goal: "billow" },
-  mutant: { count: 2, segs: 3, rest: 0.32, color: "#3a342e", tip: "#4a403c", ay: 0.04, spread: 0.45, grav: 0.55, goal: "gait" },
 }
 
 /** No biped plant — hover / cloud / roll / rooted post. Soft may still run. */
@@ -375,17 +353,14 @@ export function footAnim(
     s.holdSide * 0.35 + (limp ? faceSign * 0.5 : 0) + (mode === "stun" ? faceSign : 0) + plantLean * 0.4 + s.chestX * 0.15,
   )
 
+  // Gait is the walk/idle stamp swap only. Sliding the legs layer ±1px on a
+  // 13px figure reads as slapstick (especially with coat/leg keys split).
   let legsDx = 0
   let legsDy = 0
-  if (feet) {
-    legsDx = feet.legsDx
-    legsDy = feet.legsDy
-  } else {
-    const strideLeg =
-      mode === "move" ? (gait < 0.25 || gait > 0.75 ? 0 : Math.sin(gait * Math.PI * 2) > 0 ? 1 : -1) : 0
-    legsDx = crawl ? 0 : strideLeg + Math.round(s.holdSide) + (limp ? faceSign : 0)
-    legsDy = s.holdLift > 0.4 || mode === "crawl" ? -1 : mode === "stun" ? 1 : 0
-  }
+  if (mode === "crawl") legsDy = -1
+  else if (mode === "stun") legsDy = 1
+  else if (limp && mode === "move") legsDx = faceSign // slight drag, not a stride slide
+
 
   const showHead = !b.parts.some((p) => p.id === "head") || b.parts.some((p) => p.id === "head" && p.on)
   const showLegs = !crawl && (!hasLegPart || legCount > 0)

@@ -13,16 +13,21 @@ import {
   rollHero,
 } from "../src/content/catalog"
 import { applyWear, bankFinds, deployCost, fresh, research, restart, settleHeroes, stockOf } from "../src/meta/profile"
+import { flashOf } from "../src/content/muzzle"
+import { ecoStep, foldHostiles, genMap, pressureOf } from "../src/meta/worldmap"
 import { policy } from "../src/bot/policy"
 import {
   CRAFT_WAIT,
+  DAY,
   FLARE_ARM,
+  FLARE_R,
   GAP_MAX,
   LOAD_STEP,
   PATH_HOLD,
   IDLE,
   balanceLine,
   beams,
+  commitMap,
   discover,
   makeRun,
   offerHero,
@@ -30,6 +35,7 @@ import {
   placeDrop,
   spawnBody,
   step,
+  trackerTargets,
   type Commands,
 } from "../src/sim/world"
 
@@ -42,6 +48,7 @@ function quiet(seed = 1, deck: string[] = []) {
   w.stashAt = 1e9
   w.nextField = 1e9
   w.sleepers = []
+  w.marshes = []
   w.autoBoard = false
   w.dayOff = 0
   w.weather = "clear"
@@ -382,16 +389,19 @@ test("ram hurts the hull and only a heavy hull breaks a ruin", () => {
 
   const light = quiet()
   light.props.length = 0
+  light.marshes = []
+  light.ground = "open"
   const lightApc = spawnBody(light, { kind: "apc", x: 0, y: 0, inSection: true, damage: 0 })
   const foot = light.bodies.find((b) => b.kind === "cell_rifle")!
   foot.boarded = lightApc.id
+  lightApc.hdg = Math.PI / 2
   light.props.push({
     id: 901,
     kind: "ruin",
     x: 0,
     y: 4,
     hp: 30,
-    radius: 1.05,
+    radius: 2.2,
     alive: true,
   })
   const apcHp = lightApc.hp
@@ -406,12 +416,19 @@ test("ram hurts the hull and only a heavy hull breaks a ruin", () => {
 test("a hull drives off after one bump", () => {
   const w = quiet()
   w.props.length = 0
+  w.marshes = []
+  w.ground = "open"
   const apc = spawnBody(w, { kind: "apc", x: 0, y: 0, inSection: true, damage: 0 })
   const cell = w.bodies.find((b) => b.kind === "cell_rifle")!
   cell.boarded = apc.id
-  w.props.push({ id: 903, kind: "ruin", x: 0, y: 3, hp: 30, radius: 1.05, alive: true })
+  apc.hdg = Math.PI / 2
+  w.props.push({ id: 903, kind: "ruin", x: 0, y: 3.5, hp: 30, radius: 1.05, alive: true })
   go(w, { ...IDLE, moveY: 1 }, 0.7)
   const hitY = apc.y
+  expect(hitY).toBeGreaterThan(0.5)
+  apc.touch = 0
+  apc.bumpCd = 0
+  apc.hdg = -Math.PI / 2
   go(w, { ...IDLE, moveY: -1 }, 1)
   expect(apc.y).toBeLessThan(hitY - 0.8)
   expect(apc.alive).toBe(true)
@@ -443,26 +460,56 @@ test("a ruin stutter does not chew a hull down", () => {
 
 test("holding the path opens a harder field", () => {
   const w = quiet()
+  const dest = w.paths[0]?.to ?? w.map.nodes.find((n) => n.id !== w.nodeId)?.id ?? 1
   w.pathOn = true
+  w.paths = [{ x: 0, y: 0, hold: 0, to: dest, open: true }]
   w.pathX = 0
   w.pathY = 0
+  w.lzOn = false
+  w.flareX = 40
+  w.flareY = 40
   const foe = spawnBody(w, { kind: "shambler", x: 8, y: 0, hp: 40, damage: 0, speed: 0 })
   const before = w.diffHp
+  const from = w.nodeId
   go(w, IDLE, 0.4)
   expect(w.depth).toBe(0)
-  expect(w.pathHold).toBeGreaterThan(0.2)
+  expect(w.paths[0].hold).toBeGreaterThan(0.2)
   const cell = w.bodies.find((b) => b.kind === "cell_rifle")!
   cell.x = 20
   go(w, IDLE, 0.2)
-  expect(w.pathHold).toBe(0)
+  expect(w.paths[0].hold).toBe(0)
   cell.x = 0
   cell.y = 0
   go(w, IDLE, PATH_HOLD + 0.2)
   expect(w.depth).toBe(1)
+  expect(w.nodeId).toBe(dest)
+  expect(w.nodeId).not.toBe(from)
   expect(w.diffHp).toBeGreaterThan(before)
   expect(w.phase).toBe("run")
   expect(w.pathOn).toBe(false)
   expect(w.bodies.some((b) => b.id === foe.id)).toBe(false)
+})
+
+test("holding the LZ does not path-travel even if an exit sits on it", () => {
+  const w = quiet()
+  const dest = w.paths[0]?.to ?? w.map.nodes.find((n) => n.id !== w.nodeId)?.id ?? 1
+  const from = w.nodeId
+  w.lzOn = true
+  w.flareX = 0
+  w.flareY = 0
+  w.pathOn = true
+  w.paths = [{ x: 0, y: 0, hold: 0, to: dest, open: true }]
+  w.pathX = 0
+  w.pathY = 0
+  const cell = w.bodies.find((b) => b.kind === "cell_rifle")!
+  cell.x = 0
+  cell.y = 0
+  go(w, IDLE, PATH_HOLD + 1)
+  expect(w.nodeId).toBe(from)
+  expect(w.depth).toBe(0)
+  expect(w.phase).toBe("run")
+  expect(w.flareOn).toBe(true)
+  console.log("GATE lz-not-exit ok")
 })
 
 test("a parked hull takes no collision damage", () => {
@@ -646,22 +693,33 @@ test("a hull or a sentry with no unit loses, and a loaded hull still extracts", 
 test("extracted units, gear, and vehicles recoup their deployment cost", () => {
   const deck = ["jeep", "plate", "frag"]
   const wear = { jeep: 1 }
+  const cost = deployCost(deck, wear)
   const w = makeRun(1, deck, { wear })
-  expect(w.deckPay.reduce((sum, n) => sum + n, 0)).toBe(deployCost(deck, wear))
+  const lead0 = w.bodies.find((b) => b.kind === "cell_rifle")!
+  const fitted = Object.values(lead0.gearPay).reduce((s, n) => s + n, 0)
+  const held = w.gearHold.reduce((s, g) => s + g.cost, 0)
+  expect(w.deckPay.reduce((sum, n) => sum + n, 0) + fitted + held + w.kitPay).toBe(cost)
   w.nextHorde = 1e9
   w.nextField = 1e9
   w.stashAt = 1e9
   w.pathAt = 1e9
   w.flareAt = 1e9
   w.autoBoard = false
-  for (let n = 0; n < deck.length; n++) {
+  let guard = 0
+  while ((w.deckQueue.length || w.gearHold.length) && guard++ < 8) {
+    const before = w.deckQueue.length + w.gearHold.length
     w.nextDrop = 0
-    go(w, IDLE, 0.05)
+    for (let tries = 0; tries < 30 && !w.inbound.length; tries++) go(w, IDLE, 0.05)
     const inbound = w.inbound[0]
+    if (!inbound) {
+      // Trailing body gear can auto-fit the Lead with no flare.
+      expect(w.deckQueue.length + w.gearHold.length).toBeLessThan(before)
+      continue
+    }
     inbound.x = 0
     inbound.y = 0
     inbound.t = 0
-    go(w, IDLE, 0.2)
+    for (let tries = 0; tries < 30 && w.inbound.includes(inbound); tries++) go(w, IDLE, 0.05)
   }
   const jeep = w.bodies.find((b) => b.kind === "jeep")!
   const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
@@ -994,7 +1052,7 @@ test("kills and loot pay credits, and a find stays locked until research", () =>
   placeDrop(w, "mg", 0.3, 0)
   go(w, IDLE, 0.4)
   expect(w.found).toContain("mg")
-  expect(w.tags.some((t) => t.text === "FIND")).toBe(true)
+  expect(w.tags.some((t) => t.text.startsWith("FIND"))).toBe(true)
   const p = fresh()
   expect(deployCost(["cell_rifle"])).toBe(0)
   expect(priceOf("aegis")).toBeGreaterThan(0)
@@ -1793,7 +1851,7 @@ test("the rest of the roster is gear, hulls, and rust", () => {
     "knife", "kukri", "katana", "machete", "sword", "axe", "stave", "baton", "bow", "warbow",
     "pistol", "revolver", "autopistol", "magnum", "minismg", "laserpistol",
     "smg", "shotgun", "autoshotgun", "railgun",
-    "at", "jetpack", "litter", "filter", "ewar", "truck", "tech", "suv", "steed", "cart", "mule",
+    "at", "jetpack", "litter", "filter", "tracker", "ewar", "truck", "tech", "suv", "steed", "cart", "mule",
     "gunboat", "gunship", "rocket", "bomber", "mlrs", "ifv", "mbt", "ugv", "tube", "drill", "pump", "cutter",
     "hawk", "mid", "assassin", "operator", "jtac", "laser",
   ]
@@ -1852,6 +1910,22 @@ test("the rest of the roster is gear, hulls, and rust", () => {
   const f0 = veil.ax
   go(veil, { ...IDLE, moveX: 1 }, 1)
   expect(veil.ax - f0).toBeGreaterThan(5)
+
+  const scan = quiet()
+  scan.props = []
+  expect(trackerTargets(scan)).toHaveLength(0)
+  const far = spawnBody(scan, { kind: "shambler", x: 40, y: 0 })
+  scan.smokes.push({ x: far.x, y: far.y, r: 8, t: 6 })
+  scan.dayOff = DAY / 2
+  scan.vision = "off"
+  expect(trackerTargets(scan)).toHaveLength(0)
+  scan.drops.push({ id: 84, cardId: "tracker", x: 0.2, y: 0, bodyId: 0, kind: "gear", taken: false, cost: 0 })
+  go(scan, IDLE, 0.3)
+  expect(scan.bodies.find((b) => b.kind === "cell_rifle")!.gears).toContain("tracker")
+  expect(trackerTargets(scan).map((b) => b.id)).toContain(far.id)
+  const wear = scan.bodies.find((b) => b.kind === "cell_rifle")!
+  wear.alive = false
+  expect(trackerTargets(scan)).toHaveLength(0)
 
   const punch = quiet()
   punch.bodies.find((b) => b.kind === "cell_rifle")!.damage = 0
@@ -2062,10 +2136,13 @@ test("seeds field different ground, and depth 0 stays off the heavy list", () =>
     const w = makeRun(seed, [])
     grounds.add(w.ground)
     bearings.add(w.bearing)
-    expect(Math.hypot(w.pathX, w.pathY)).toBeCloseTo(30, 4)
-    expect(w.flareX).toBeCloseTo(-w.pathX, 4)
-    expect(w.flareY).toBeCloseTo(-w.pathY, 4)
-    const ang = Math.atan2(w.pathY, w.pathX)
+    expect(w.paths.length).toBeGreaterThanOrEqual(2)
+    expect(Math.hypot(w.paths[0].x, w.paths[0].y)).toBeCloseTo(72, 4)
+    expect(Math.hypot(w.flareX, w.flareY)).toBeCloseTo(72, 4)
+    for (const p of w.paths) {
+      expect(Math.hypot(w.flareX - p.x, w.flareY - p.y)).toBeGreaterThan(FLARE_R * 2)
+    }
+    const ang = Math.atan2(w.paths[0].y, w.paths[0].x)
     const off = Math.abs(-Math.sin(ang) * w.stashX + Math.cos(ang) * w.stashY)
     expect(off).toBeGreaterThanOrEqual(16)
     expect(off).toBeLessThanOrEqual(28)
@@ -2089,7 +2166,9 @@ test("seeds field different ground, and depth 0 stays off the heavy list", () =>
 
   const w = makeRun(1, [])
   w.nextHorde = 1e9
+  const dest = w.paths[0]?.to ?? 1
   w.pathOn = true
+  w.paths = [{ x: 0, y: 0, hold: 0, to: dest, open: true }]
   w.pathX = 0
   w.pathY = 0
   go(w, IDLE, PATH_HOLD + 0.2)
@@ -2161,4 +2240,73 @@ test("a new primary keeps the secondary", () => {
   expect(lead.gears).toContain("knife")
   expect(lead.gears.includes("rifle")).toBe(false)
   expect(lead.mobileFire).toBe(true)
+})
+
+test("muzzle flashes mark the gun and skip blades", () => {
+  expect(flashOf("rifle")?.shape).toBe("cross")
+  expect(flashOf("rifle")?.light).toBeGreaterThan(4)
+  expect(flashOf("smg")?.shape).toBe("dot")
+  expect(flashOf("shotgun")?.shape).toBe("cone")
+  expect(flashOf("sniper")?.shape).toBe("spike")
+  expect(flashOf("railgun")?.shape).toBe("bolt")
+  expect(flashOf("mg")?.shape).toBe("bloom")
+  expect(flashOf("gren")?.shape).toBe("puff")
+  expect(flashOf("knife")).toBeNull()
+  expect(flashOf("bow")).toBeNull()
+  const w = quiet()
+  const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
+  lead.cool = 0
+  lead.deploy = lead.deployNeed
+  spawnBody(w, { kind: "shambler", x: 4, y: 0, speed: 0, damage: 0, hp: 80 })
+  const before = lead.fired
+  step(w, IDLE, 1 / 30)
+  expect(lead.fired).toBeGreaterThan(before)
+  expect(w.flashes.length).toBeGreaterThan(0)
+  expect(w.flashes[0].shape).toBe("cross")
+  expect(w.flashes[0].light).toBeGreaterThan(4)
+  console.log("GATE muzzle-flash ok")
+})
+
+test("campaign map nodes have multiple exits and residue eco", () => {
+  const map = genMap(42)
+  expect(map.nodes.length).toBe(169)
+  const home = map.nodes.find((n) => n.id === map.start)!
+  expect(home.q).toBe(0)
+  expect(home.r).toBe(0)
+  expect(home.exits.length).toBe(6)
+  for (const n of map.nodes) {
+    expect(n.exits.length).toBeGreaterThanOrEqual(1)
+    expect(n.exits.length).toBeLessThanOrEqual(6)
+    expect(typeof n.q).toBe("number")
+    expect(typeof n.r).toBe("number")
+  }
+  const n = map.nodes[0]
+  const before = n.feral
+  ecoStep(n, 4)
+  expect(n.feral).not.toBe(before)
+  foldHostiles(n, 0, 0, 8)
+  expect(n.scar).toBeGreaterThan(1)
+  const band = ["drift", "skirmish"]
+  expect(band).toContain(pressureOf(n, band))
+})
+
+test("leaving a node scars it and can cache loot", () => {
+  const w = quiet()
+  const node = w.map.nodes.find((n) => n.id === w.nodeId)!
+  w.nodeKills = 6
+  w.drops.push({
+    id: w.nextId++,
+    cardId: "salvage",
+    x: 3,
+    y: 3,
+    bodyId: -1,
+    kind: "loot",
+    taken: false,
+    cost: 0,
+  })
+  commitMap(w)
+  expect(node.scar).toBeGreaterThan(0)
+  expect(node.loot.length).toBeLessThanOrEqual(2)
+  expect(node.loot.some((l) => l.kind === "salvage")).toBe(true)
+  console.log("GATE world-scar ok")
 })

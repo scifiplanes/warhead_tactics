@@ -14,7 +14,11 @@ function play(seed: number, deck: string[]) {
   const w = makeRun(seed, deck)
   const open = w.bodies.filter((b) => b.inSection).map((b) => b.kind)
   if (open.length !== 1 || open[0] !== "cell_rifle") notes.push(`open ${open.join(",")}`)
-  if (w.deckQueue.length !== deck.length) notes.push(`queue ${w.deckQueue.length}`)
+  const lead0 = w.bodies.find((b) => b.id === w.commander)
+  const worn = (lead0?.gears ?? []).filter((id) => deck.includes(id)).length
+  if (w.deckQueue.length + w.gearHold.length + worn !== deck.length) {
+    notes.push(`queue ${w.deckQueue.length}`)
+  }
   let guard = 0
   let overlap = 0
   while (w.phase === "run" && guard < 4200) {
@@ -137,7 +141,8 @@ function runOut(w: World, rounds: number) {
   while (w.phase === "run" && guard < 12000) {
     const giveUp = w.lzOn && w.t > w.flareAt + 25
     const push = w.depth < rounds && !w.craftOn && !giveUp && (w.pathOn || w.t >= w.pathAt - 10)
-    const cmd = push ? toward(w, w.pathX, w.pathY) : policy(w)
+    const exit = w.paths.find((p) => p.open) ?? w.paths[0] ?? { x: w.pathX, y: w.pathY }
+    const cmd = push ? toward(w, exit.x, exit.y) : policy(w)
     try {
       step(w, cmd, 1 / 30)
     } catch (err) {

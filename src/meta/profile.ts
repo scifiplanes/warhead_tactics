@@ -1,4 +1,5 @@
 import { DECK_CAP, STARTER, isHero, paidFor, priceOf, researchCost, type Hero } from "../content/catalog"
+import { diskCount, genMap, parseMap, type CampaignMap } from "./worldmap"
 
 const KEY = "warhead-tactics-profile"
 
@@ -10,10 +11,23 @@ export type Profile = {
   depth: Record<string, number>
   wear: Record<string, number>
   heroes: Hero[]
+  /** Seeded field graph; persists scars and residue across runs. */
+  worldSeed: number
+  map: CampaignMap | null
 }
 
 export function fresh(): Profile {
-  return { credits: 0, found: [STARTER], known: [STARTER], depth: { [STARTER]: 1 }, wear: {}, heroes: [] }
+  const worldSeed = (Math.random() * 1e9) | 0 || 1
+  return {
+    credits: 0,
+    found: [STARTER],
+    known: [STARTER],
+    depth: { [STARTER]: 1 },
+    wear: {},
+    heroes: [],
+    worldSeed,
+    map: genMap(worldSeed),
+  }
 }
 
 export function load(): Profile {
@@ -56,10 +70,19 @@ export function load(): Profile {
       if (!p.depth[id]) p.depth[id] = 1
     }
     if (!p.depth[STARTER]) p.depth[STARTER] = 1
+    p.worldSeed = Math.max(1, Math.floor(Number(p.worldSeed) || 0) || ((Math.random() * 1e9) | 0) || 1)
+    p.map = parseMap(p.map) ?? genMap(p.worldSeed)
     return p
   } catch {
     return fresh()
   }
+}
+
+export function ensureMap(p: Profile): CampaignMap {
+  if (!p.map || p.map.nodes.length !== diskCount()) {
+    p.map = genMap(p.worldSeed || 1)
+  }
+  return p.map
 }
 
 export function restart(p: Profile) {
@@ -69,6 +92,8 @@ export function restart(p: Profile) {
   p.depth = { [STARTER]: 1 }
   p.wear = {}
   p.heroes = []
+  p.worldSeed = (Math.random() * 1e9) | 0 || 1
+  p.map = genMap(p.worldSeed)
   save(p)
 }
 

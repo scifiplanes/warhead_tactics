@@ -1,64 +1,66 @@
 type Pal = Record<string, string>
 
 /** Body only — held gun stamped from HOLD. 161 high-angle foreshortened stack. */
+/** 16×13 idle/walk (shipped footprint) — denser clusters inside, no canvas growth. */
 const SOLDIER = {
   idle: [
     "................",
-    "......s.........",
-    ".....HHHH.......",
-    "....HHVVH.......",
-    "....HSSCCC......",
-    "...CCCCCCCC.....",
-    "...cCCCCCCC.....",
-    "...CCCCAC.......",
-    "...CCCCN........",
-    "...CCCCk........",
-    "...CCL.L..M.....",
-    "...CL...L.......",
-    "...BB...BB......",
+    "......TT........",
+    ".....THHHH......",
+    "....HHVVHs......",
+    "....HSSAAAC.....",
+    "...cCCCCCCCc....",
+    "...cCCCNNNCc....",
+    "...cCCkkkCCc....",
+    "...cCCCCACCc....",
+    "...cCCCCCCM.....",
+    "....LL.LL.......",
+    "....L...L.......",
+    "....BB.BB.......",
   ],
   walk: [
+    // Subtle stride (HEAD language) — one step out, not a full split
     "................",
-    "......s.........",
-    ".....HHHH.......",
-    "....HHVVH.......",
-    "....HSSCCC......",
-    "...CCCCCCCC.....",
-    "...cCCCCCCC.....",
-    "...CCCCAC.......",
-    "...CCCCN........",
-    "...CCCCk........",
-    "...CL..L..M.....",
-    "..LL....L.......",
-    ".BB......B......",
+    "......TT........",
+    ".....THHHH......",
+    "....HHVVHs......",
+    "....HSSAAAC.....",
+    "...cCCCCCCCc....",
+    "...cCCCNNNCc....",
+    "...cCCkkkCCc....",
+    "...cCCCCACCc....",
+    "...cCCCCCCM.....",
+    "....L..L........",
+    "...LL....L......",
+    "...BB.....B.....",
   ],
   dep: [
     "..............",
-    "....HHHH......",
-    "...HHVH.......",
-    "...HSCCC......",
-    "..CCCCCCC.....",
-    "..CCCCC.......",
-    "..CCCC........",
-    "..CCCk........",
-    "..CL.L.M......",
-    "..B...B.......",
+    "....TTHH......",
+    "...HHVHs......",
+    "...HSAAAC.....",
+    "..cCCCCCCc....",
+    "..cCCNNNCc....",
+    "..cCCkkkCc....",
+    "..cCCCCCM.....",
+    "...L.L........",
+    "...B..B.......",
   ],
 }
-/** Extra keys for 161 coat shade / sleeve mass. */
-const ISO: Pal = { V: "#1a1814", c: "#4e4a42", A: "#5a564e", N: "#4a4840", k: "#3a3834", s: "#1a1814", M: "#2a2824" }
+/** Extra keys for 161 coat shade / sleeve mass / light dome. */
+const ISO: Pal = { T: "#7a766e", V: "#1a1814", c: "#4e4a42", A: "#8a8680", N: "#4a4840", k: "#3a3834", s: "#1a1814", M: "#2a2824" }
 const PALS: Record<string, Pal> = {
-  cell_rifle: { ...ISO, H: "#3a3832", S: "#4a4640", C: "#6a655c", L: "#4a463c", B: "#1a1814" },
-  medic: { ...ISO, H: "#3a3832", S: "#4a4640", C: "#6a6860", L: "#4e4c44", B: "#1a1814" },
-  engr: { ...ISO, H: "#3a3832", S: "#4a4640", C: "#5a5448", L: "#4a4036", B: "#1a1814" },
-  relay: { ...ISO, H: "#3a3832", S: "#4a4640", C: "#5a6058", L: "#444840", B: "#1a1814" },
-  aegis: { ...ISO, H: "#3a4044", S: "#5a6058", C: "#5a6264", L: "#3e4648", B: "#1a1814", c: "#3e4648", A: "#4a5254" },
-  forge: { ...ISO, H: "#3a3834", S: "#4a463c", C: "#4a4840", L: "#3e3a34", B: "#1a1814" },
-  wisp: { ...ISO, H: "#4a4e52", S: "#6a6e68", C: "#6a7274", L: "#5a6264", B: "#1a1814", c: "#4a5254" },
-  killer: { ...ISO, H: "#2a2c2e", S: "#3a3834", C: "#3a3e40", L: "#2a2c2a", B: "#141210", c: "#2a2c2a", A: "#2e3234" },
-  assassin: { ...ISO, H: "#1a1c1e", S: "#2a2824", C: "#2a2e30", L: "#222422", B: "#121210", c: "#1a1c1e", A: "#222628" },
-  operator: { ...ISO, H: "#3a4040", S: "#4a4840", C: "#4a5650", L: "#3a4440", B: "#1a1814" },
-  jtac: { ...ISO, H: "#3a3832", S: "#4a4640", C: "#4a4840", L: "#4a4840", B: "#1a1814" },
+  cell_rifle: { ...ISO, H: "#6a6860", S: "#5a5448", C: "#6a655c", L: "#4a463c", B: "#1a1814" },
+  medic: { ...ISO, H: "#6a6860", S: "#5a5448", C: "#6a6860", L: "#4e4c44", B: "#1a1814" },
+  engr: { ...ISO, H: "#6a6860", S: "#5a5448", C: "#5a5448", L: "#4a4036", B: "#1a1814" },
+  relay: { ...ISO, H: "#6a6860", S: "#5a5448", C: "#5a6058", L: "#444840", B: "#1a1814" },
+  aegis: { ...ISO, H: "#5a6264", S: "#5a6058", C: "#5a6264", L: "#3e4648", B: "#1a1814", c: "#3e4648", A: "#8a9090", T: "#9aa0a0" },
+  forge: { ...ISO, H: "#5a564e", S: "#5a5448", C: "#5a5448", c: "#3e3a34", N: "#3a3834", L: "#3e3a34", B: "#1a1814" },
+  wisp: { ...ISO, H: "#6a7274", S: "#6a6e68", C: "#6a7274", L: "#5a6264", B: "#1a1814", c: "#4a5254", T: "#8a8e88" },
+  killer: { ...ISO, H: "#4a4e50", S: "#3a3834", C: "#3a3e40", L: "#2a2c2a", B: "#141210", c: "#2a2c2a", A: "#5a5e60", T: "#6a6e70" },
+  assassin: { ...ISO, H: "#3a3e40", S: "#2a2824", C: "#2a2e30", L: "#222422", B: "#121210", c: "#1a1c1e", A: "#4a4e50", T: "#5a5e60" },
+  operator: { ...ISO, H: "#5a6058", S: "#5a5448", C: "#4a5650", L: "#3a4440", B: "#1a1814" },
+  jtac: { ...ISO, H: "#6a6860", S: "#5a5448", C: "#5a564e", N: "#3a3834", L: "#4a4840", B: "#1a1814" },
 }
 
 type Stamp = { x: number; y: number; rows: string[]; pal: Pal }
@@ -69,7 +71,7 @@ const HOLD: Record<string, Stamp> = {
   smg: { x: 9, y: 7, rows: ["WW.", "WWw", ".o."], pal: { W: "#1e1c18", w: "#12110f", o: "#8a8680" } },
   shotgun: { x: 9, y: 6, rows: [".WW", "WWW", "WWw", ".W."], pal: { W: "#3a342c", w: "#2a241c" } },
   sniper: { x: 9, y: 6, rows: ["..o.", "WWWWW", ".W..."], pal: { W: "#1a1814", o: "#5a5850" } },
-  railgun: { x: 9, y: 6, rows: ["..o.", "WWWWQ", ".W..."], pal: { W: "#1a1814", o: "#5a5850", Q: "#3ecfc2" } },
+  railgun: { x: 9, y: 6, rows: ["..o.", "WWWWQ", ".W..."], pal: { W: "#1a1814", o: "#5a5850", Q: "#a8a49c" } },
   mg: { x: 9, y: 6, rows: ["WWWW", "W.W.", "WW.."], pal: { W: "#2e2c28" } },
   pistol: { x: 10, y: 8, rows: ["W", "w"], pal: { W: "#3a3834", w: "#2a2824" } },
   gren: { x: 9, y: 7, rows: [".G.", "GGG"], pal: { G: "#4a463e" } },
@@ -251,7 +253,7 @@ const DRONE = [
   ],
 ]
 const DP: Pal = { x: "#3a3a38", o: "#2a4e4a" }
-const SCOOT: Pal = { x: "#3a403e", o: "#3ecfc2" }
+const SCOOT: Pal = { x: "#3a403e", o: "#6e6e6e" }
 /** Walkers — foreshortened biped mass + single dark optic. */
 const WALKER = [
   [
@@ -301,7 +303,7 @@ const COIL = [
     "....xx....x.....",
   ],
 ]
-const COIL_P: Pal = { x: "#3a4848", o: "#3ecfc2" }
+const COIL_P: Pal = { x: "#3a4848", o: "#6e6e6e" }
 /** Bloom — vine grower, wide base + tendrils. */
 const BLOOM = [
   [
@@ -373,7 +375,7 @@ const AMALGAM = [
     "..x......x......",
   ],
 ]
-const AMALGAM_P: Pal = { X: "#3a4448", x: "#243034", o: "#3ecfc2" }
+const AMALGAM_P: Pal = { X: "#3a4448", x: "#243034", o: "#8a5040" }
 /** High-angle crate — top face + foreshortened side. */
 const CRATE = [
   "..CCCCCC..",
@@ -401,7 +403,7 @@ const GEAR: Record<string, [string[], Pal]> = {
   smg: [["..WWWWW.", ".WWWWWW.", "WWWWWW..", ".WW....."], { ...GRAY, W: "#2a2824" }],
   shotgun: [[".....WW", "WWWWWWW", "WWWWWW.", ".WW...."], { ...GRAY, W: "#4a4030" }],
   autoshotgun: [["....WWW", "WWWWWWW", "WWWWWW.", "WW.W..."], { ...GRAY, W: "#3a342c" }],
-  railgun: [["......WW", "WWWWWWWW", "WWWWWWW.", "...W...."], { ...GRAY, W: "#3ecfc2" }],
+  railgun: [["......WW", "WWWWWWWW", "WWWWWWW.", "...W...."], { ...GRAY, W: "#3a3834" }],
   plate: [[".KK..KK.", "KKKKKKKK", "KKkKKkKK", "KKKKKKKK", ".KKKKKK.", ".KKKKKK.", ".KKKKKK."], GRAY],
   dot: [["..SS..", ".SrrS.", ".SrrS.", "..SS.."], GRAY],
   holo: [[".SSSS.", "S....S", "S.rr.S", "S....S", ".SSSS."], GRAY],
@@ -444,7 +446,7 @@ const GEAR: Record<string, [string[], Pal]> = {
   nvg: [[".GG..GG.", "G..GG..G", "G.gggg.G", "G.gGGg.G", "G.gggg.G", "G..GG..G", ".GG..GG."], { ...GRAY, G: "#8a8680", g: "#2f6a48" }],
   thermal: [[".HH..HH.", "H..HH..H", "H.hhhh.H", "H.hHHh.H", "H.hhhh.H", "H..HH..H", ".HH..HH."], { ...GRAY, H: "#8a8680", h: "#c4a060" }],
   thermite: [["...TT...", "..TTTT..", ".TTTTTT.", "..TTTT..", "...TT..."], { ...GRAY, T: "#6a5a40" }],
-  emp: [["..E..E..", ".EE..EE.", "..EEEE..", ".EE..EE.", "..E..E.."], { ...GRAY, E: "#3ecfc2" }],
+  emp: [["..E..E..", ".EE..EE.", "..EEEE..", ".EE..EE.", "..E..E.."], { ...GRAY, E: "#6e6e6e" }],
   smoke: [[".SSSSSS.", "SSSSSSSS", "SSSSSSSS", ".SSSSSS."], { ...GRAY, S: "#8a8a86" }],
   exo: [["E......E", "EEE..EEE", "E.EEEE.E", "E.E..E.E", "EEE..EEE", "E......E"], { ...GRAY, E: "#6a6860" }],
   stun: [["..SSSS..", ".S....S.", "S..ss..S", "S.s..s.S", ".S....S.", "..SSSS.."], { ...GRAY, S: "#8a8680", s: "#c4a060" }],
@@ -463,7 +465,8 @@ const GEAR: Record<string, [string[], Pal]> = {
   jetpack: [["..JJ....", ".JJJJ...", "JJ..JJ..", ".JJJJ...", "..JJ...."], { ...GRAY, J: "#6a6860" }],
   litter: [["LLLLLLLL", "L......L", "L......L", "LLLLLLLL"], { ...GRAY, L: "#8a8680" }],
   filter: [["...F....", "..FFF...", ".FFFFF..", "FFFFFFF."], { ...GRAY, F: "#5a6a60" }],
-  ewar: [["E..EE..E", ".E....E.", "..EEEE..", ".E....E.", "E..EE..E"], { ...GRAY, E: "#3ecfc2" }],
+  ewar: [["E..EE..E", ".E....E.", "..EEEE..", ".E....E.", "E..EE..E"], { ...GRAY, E: "#6e6e6e" }],
+  tracker: [["TT......TT", "T........T", "..........", "..........", "..........", "T........T", "TT......TT"], { ...GRAY, T: "#a8a49c" }],
 }
 
 export type Pose = "idle" | "walk" | "dep"
@@ -613,12 +616,9 @@ function paintKeys(rows: string[], pal: Pal, allow: string) {
 type LayerSet = { head: HTMLCanvasElement; coat: HTMLCanvasElement; legs: HTMLCanvasElement }
 const layerPacks = new Map<string, LayerSet>()
 
-const SOLDIER_HEAD = "HSVs"
+const SOLDIER_HEAD = "THSVs"
 const SOLDIER_COAT = "CcANkM"
 const SOLDIER_LEGS = "LB"
-const FLESH_HEAD = "h"
-const FLESH_COAT = "c"
-const FLESH_LEGS = "b"
 
 function bakeLayers(kind: string, pose: Pose, rows: string[], pal: Pal, headK: string, coatK: string, legsK: string) {
   const head = paintKeys(rows, pal, headK)
@@ -630,7 +630,7 @@ function bakeLayers(kind: string, pose: Pose, rows: string[], pal: Pal, headK: s
     rects(g, "#6a3030", [[6, 6 + dy, 1, 3], [5, 7 + dy, 3, 1]])
   }
   if (kind === "aegis" || kind === "forge" || kind === "wisp") {
-    rects(head.getContext("2d")!, "#3ecfc2", [[6, pose === "dep" ? 1 : 2, 1, 1]])
+    rects(head.getContext("2d")!, "#6e6e6e", [[6, pose === "dep" ? 1 : 2, 1, 1]])
   }
   shadeFlat(head)
   shadeFlat(coat)
@@ -1124,21 +1124,98 @@ function mlrs(): VehArt {
   return { body: b, turret: t, pivot: [6, 6], mount: [0, 0] }
 }
 
-function hex(): VehArt {
-  const b = cv(22, 18)
-  const g = b.getContext("2d")!
-  // angular track skirts
-  rects(g, "#2a2a24", [[0, 2, 22, 3], [0, 13, 22, 3]])
-  rects(g, "#3a3834", [[1, 5, 20, 8]])
-  rects(g, "#5a5850", [[16, 5, 5, 8]])
-  // angular panel lines
-  rects(g, "#2e2c28", [[4, 5, 1, 8], [9, 5, 1, 8]])
+/** Bipedal HEX mech — high-angle torso + thick planted legs (not a tracked hull). */
+function hex(tier: "scout" | "line" | "siege"): VehArt {
+  const HP: Pal = {
+    T: "#6a6860",
+    M: "#4a4840",
+    D: "#2a2824",
+    H: "#5a5850",
+    L: "#3a3834",
+    K: "#2e2c28",
+    B: "#1a1a18",
+    O: "#141410",
+    A: "#5a5850",
+  }
+  // Angular pauldrons, cockpit optic, hip pods, knee joints, pad feet.
+  const rows =
+    tier === "scout"
+      ? [
+          "......................",
+          ".....AA....AA.........",
+          "....TTTTTTTTTT........",
+          "...TTTTTOOTTTTT.......",
+          "...TTTTTTTTTTTT.......",
+          "....TTMMMMMMTT........",
+          ".....TMMMMMMT.........",
+          "......DDDDDD..........",
+          ".....HHH..HHH.........",
+          "....LLLL..LLLL........",
+          "...LLLL....LLLL.......",
+          "...LLLK....KLLL.......",
+          "..LLL........LLL......",
+          "..LL..........LL......",
+          ".BBB..........BBB.....",
+          ".BBBB........BBBB.....",
+          "..BBB........BBB......",
+          "......................",
+        ]
+      : tier === "line"
+        ? [
+            "......................",
+            "....AAA....AAA........",
+            "...TTTTTTTTTTTT.......",
+            "..TTTTTOOTTTTTTT......",
+            "..TTTTTTTTTTTTTT......",
+            "...TTTMMMMMMTTT.......",
+            "....TTMMMMMMTT........",
+            ".....DDDDDDDD.........",
+            "....HHHH..HHHH........",
+            "...LLLLL..LLLLL.......",
+            "..LLLLL....LLLLL......",
+            "..LLLLK....KLLLL......",
+            ".LLLL........LLLL.....",
+            ".LLL..........LLL.....",
+            "BBBB..........BBBB....",
+            "BBBBB........BBBBB....",
+            ".BBBB........BBBB.....",
+            "..BBB........BBB......",
+          ]
+        : [
+            "......................",
+            "...AAAA....AAAA.......",
+            "..TTTTTTTTTTTTTT......",
+            ".TTTTTTTOOTTTTTTT.....",
+            ".TTTTTTTTTTTTTTTT.....",
+            "..TTTTMMMMMMTTTT......",
+            "...TTTMMMMMMTTT.......",
+            "....DDDDDDDDDD........",
+            "...HHHHH..HHHHH.......",
+            "..LLLLLL..LLLLLL......",
+            ".LLLLLL....LLLLLL.....",
+            ".LLLLLK....KLLLLL.....",
+            "LLLLL........LLLLL....",
+            "LLLL..........LLLL....",
+            "BBBBB........BBBBB....",
+            "BBBBBB......BBBBBB....",
+            ".BBBBB......BBBBB.....",
+            "..BBBB......BBBB......",
+          ]
+  const b = paint(rows, HP)
   shadeFlat(b)
-  const t = cv(14, 8)
+  const barrel = tier === "scout" ? 6 : tier === "line" ? 9 : 13
+  const t = cv(barrel + 6, tier === "siege" ? 8 : 6)
   const h = t.getContext("2d")!
-  rects(h, "#4a4844", [[0, 0, 8, 8]])
-  rects(h, "#1a1a18", [[8, 3, 6, 2]])
-  return { body: b, turret: t, pivot: [4, 4], mount: [0, 0] }
+  const th = t.height
+  // Arm cuff + tube — mech shoulder gun, not a tank cupola
+  rects(h, "#3a3834", [[0, 1, 5, th - 2]])
+  rects(h, "#5a5850", [[1, 0, 4, 1]])
+  rects(h, "#2a2824", [[0, th - 1, 5, 1], [2, 2, 2, th - 4]])
+  rects(h, "#4a4840", [[4, Math.floor(th / 2) - 1, 3, 3]])
+  rects(h, "#1a1a18", [[7, Math.floor(th / 2) - (tier === "siege" ? 1 : 0), barrel, tier === "siege" ? 3 : 2]])
+  if (tier === "siege") rects(h, "#2a2824", [[7 + barrel - 3, Math.floor(th / 2) - 1, 3, 3]])
+  const mountY = tier === "scout" ? -5 : tier === "line" ? -4.5 : -4
+  return { body: b, turret: t, pivot: [2.5, th / 2], mount: [3, mountY] }
 }
 
 function ugv(): VehArt {
@@ -1237,7 +1314,7 @@ function boot() {
         const dy = pose === "dep" ? -1 : 0
         rects(g, "#6a3030", [[6, 6 + dy, 1, 3], [5, 7 + dy, 3, 1]])
       }
-      if (id === "aegis" || id === "forge" || id === "wisp") rects(c.getContext("2d")!, "#3ecfc2", [[6, pose === "dep" ? 1 : 2, 1, 1]])
+      if (id === "aegis" || id === "forge" || id === "wisp") rects(c.getContext("2d")!, "#6e6e6e", [[6, pose === "dep" ? 1 : 2, 1, 1]])
       shadeFlat(c)
       actors.set(`${id}:${pose}`, c)
       bakeLayers(id, pose, SOLDIER[pose], PALS[id], SOLDIER_HEAD, SOLDIER_COAT, SOLDIER_LEGS)
@@ -1248,11 +1325,12 @@ function boot() {
     shadeFlat(c)
     return c
   }
+  // Flesh NPCs stay solid stamps — layer splits (head/coat/legs) read as offset parts
+  // on dirty 16×13 masses. Soft trail tips still run under the stamp via anim.ts.
   const flesh = (kind: string, frames: string[][], pal: Pal) => {
     frames.forEach((rows, i) => {
       const pose: Pose = i ? "walk" : "idle"
       actors.set(`${kind}:${pose}`, npc(rows, pal))
-      bakeLayers(kind, pose, rows, pal, FLESH_HEAD, FLESH_COAT, FLESH_LEGS)
     })
   }
   flesh("shambler", ZOMBIE, CORPSE)
@@ -1267,11 +1345,11 @@ function boot() {
   })
   WALKER.forEach((rows, i) => actors.set(`walker:${i ? "walk" : "idle"}`, npc(rows, WP)))
   DRONE.forEach((rows, i) => actors.set(`crowhead:${i ? "walk" : "idle"}`, npc(rows, { x: "#4a4844", o: "#6a3030" })))
-  WALKER.forEach((rows, i) => actors.set(`tract:${i ? "walk" : "idle"}`, npc(rows, { X: "#3a4848", x: "#2a3434", o: "#3ecfc2" })))
+  WALKER.forEach((rows, i) => actors.set(`tract:${i ? "walk" : "idle"}`, npc(rows, { X: "#3a4848", x: "#2a3434", o: "#6e6e6e" })))
   COIL.forEach((rows, i) => actors.set(`coil:${i ? "walk" : "idle"}`, npc(rows, COIL_P)))
-  DRONE.forEach((rows, i) => actors.set(`flake:${i ? "walk" : "idle"}`, npc(rows, { x: "#5a6a6a", o: "#3ecfc2" })))
+  DRONE.forEach((rows, i) => actors.set(`flake:${i ? "walk" : "idle"}`, npc(rows, { x: "#5a6a6a", o: "#6e6e6e" })))
   WALKER.forEach((rows, i) => actors.set(`roller:${i ? "walk" : "idle"}`, npc(rows, { X: "#4a4844", x: "#2e2c28", o: "#6a6860" })))
-  DRONE.forEach((rows, i) => actors.set(`kite:${i ? "walk" : "idle"}`, npc(rows, { x: "#6a6860", o: "#3ecfc2" })))
+  DRONE.forEach((rows, i) => actors.set(`kite:${i ? "walk" : "idle"}`, npc(rows, { x: "#6a6860", o: "#6e6e6e" })))
   WALKER.forEach((rows, i) => actors.set(`slab:${i ? "walk" : "idle"}`, npc(rows, { X: "#3a3834", x: "#2a2824", o: "#5a5850" })))
   DRONE.forEach((rows, i) => actors.set(`copter:${i ? "walk" : "idle"}`, npc(rows, { x: "#5a5854", o: "#8a8680" })))
   DRONE.forEach((rows, i) => actors.set(`hawk:${i ? "walk" : "idle"}`, npc(rows, { x: "#4a4038", o: "#6a3030" })))
@@ -1283,14 +1361,14 @@ function boot() {
   actors.set("rocket:walk", rocketBird())
   actors.set("bomber:idle", bombBird())
   actors.set("bomber:walk", bombBird())
-  DRONE.forEach((rows, i) => actors.set(`mid:${i ? "walk" : "idle"}`, npc(rows, { x: "#3a4044", o: "#3ecfc2" })))
+  DRONE.forEach((rows, i) => actors.set(`mid:${i ? "walk" : "idle"}`, npc(rows, { x: "#3a4044", o: "#6e6e6e" })))
   WALKER.forEach((rows, i) => actors.set(`reach:${i ? "walk" : "idle"}`, npc(rows, { X: "#3a4844", x: "#24302c", o: "#5a6a64" })))
   WALKER.forEach((rows, i) => actors.set(`mast:${i ? "walk" : "idle"}`, npc(rows, { X: "#4a5858", x: "#2a3838", o: "#8aa0a0" })))
   WALKER.forEach((rows, i) => actors.set(`dray:${i ? "walk" : "idle"}`, npc(rows, { X: "#3a3834", x: "#22201c", o: "#6a6860" })))
   WALKER.forEach((rows, i) => actors.set(`rust_plow:${i ? "walk" : "idle"}`, npc(rows, { X: "#3a4440", x: "#242c28", o: "#5a6a60" })))
   WALKER.forEach((rows, i) => actors.set(`post:${i ? "walk" : "idle"}`, npc(rows, { X: "#4a4840", x: "#2a2820", o: "#8a8680" })))
   BLOOM.forEach((rows, i) => actors.set(`bloom:${i ? "walk" : "idle"}`, npc(rows, BLOOM_P)))
-  DRONE.forEach((rows, i) => actors.set(`cluster:${i ? "walk" : "idle"}`, npc(rows, { x: "#5a6868", o: "#3ecfc2" })))
+  DRONE.forEach((rows, i) => actors.set(`cluster:${i ? "walk" : "idle"}`, npc(rows, { x: "#5a6868", o: "#6e6e6e" })))
   FOG.forEach((rows, i) => actors.set(`fog:${i ? "walk" : "idle"}`, npc(rows, FOG_P)))
   WALKER.forEach((rows, i) => actors.set(`ball:${i ? "walk" : "idle"}`, npc(rows, { X: "#2a2c2e", x: "#1a1c1e", o: "#5a5854" })))
   AMALGAM.forEach((rows, i) => actors.set(`amalgam:${i ? "walk" : "idle"}`, npc(rows, AMALGAM_P)))
@@ -1331,9 +1409,9 @@ function boot() {
   vehicles.set("buggy", jeep())
   vehicles.set("hover", hover())
   vehicles.set("mrap", mrap())
-  vehicles.set("hex_scout", hex())
-  vehicles.set("hex_line", hex())
-  vehicles.set("hex_siege", hex())
+  vehicles.set("hex_scout", hex("scout"))
+  vehicles.set("hex_line", hex("line"))
+  vehicles.set("hex_siege", hex("siege"))
   vehicles.set("truck", truck())
   vehicles.set("tech", jeep())
   vehicles.set("suv", jeep())
@@ -1393,7 +1471,7 @@ function tone(kind: string) {
   if (pal) return { head: pal.H, skin: pal.S, body: pal.C, limb: pal.L, boot: pal.B }
   if (kind === "pighead") return { head: "#6a5848", skin: "#6a5848", body: "#3a342e", limb: "#3a342e", boot: "#1c1814" }
   if (kind === "mutant") return { head: "#4a403c", skin: "#4a403c", body: "#4a403c", limb: "#3a342e", boot: "#2a2420" }
-  if (kind === "drone" || kind === "scoot" || kind === "walker") return { head: "#3ecfc2", skin: "#3ecfc2", body: "#3a403e", limb: "#2a2824", boot: "#1a1a18" }
+  if (kind === "drone" || kind === "scoot" || kind === "walker") return { head: "#6e6e6e", skin: "#6e6e6e", body: "#3a403e", limb: "#2a2824", boot: "#1a1a18" }
   return { head: "#5a5048", skin: "#5a5048", body: "#3a342e", limb: "#3a342e", boot: "#1c1814" }
 }
 
@@ -1461,10 +1539,24 @@ export function octo(span: number, frame: number): HTMLCanvasElement {
 
 const cargos = new Map<string, HTMLCanvasElement>()
 
-export function cargo(kind: string | null): HTMLCanvasElement {
-  const key = kind ?? ""
+export function cargo(kind: string | null, gear = false): HTMLCanvasElement {
+  const key = gear ? `g:${kind ?? ""}` : (kind ?? "")
   const hit = cargos.get(key)
   if (hit) return hit
+  if (gear && kind) {
+    const box  = scenery("crate")!
+    const mark = icon(kind)
+    if (!mark) {
+      cargos.set(key, box)
+      return box
+    }
+    const c = cv(Math.max(box.width, mark.width), box.height + mark.height)
+    const g = c.getContext("2d")!
+    g.drawImage(box,  ((c.width - box.width)  / 2) | 0, mark.height)
+    g.drawImage(mark, ((c.width - mark.width) / 2) | 0, 0)
+    cargos.set(key, c)
+    return c
+  }
   const c = (kind && (actor(kind, "idle", false) ?? vehicleFlat(kind))) || scenery("crate")!
   cargos.set(key, c)
   return c
@@ -1473,10 +1565,16 @@ export function cargo(kind: string | null): HTMLCanvasElement {
 function vehicleFlat(id: string) {
   const v = vehicles.get(id)
   if (!v) return null
-  const c = cv(v.body.width + 6, v.body.height + 8)
+  const padX = 4
+  const padY = 4
+  const c = cv(v.body.width + padX * 2 + 8, v.body.height + padY * 2 + 6)
   const g = c.getContext("2d")!
-  g.drawImage(v.body, 3, 4)
-  g.drawImage(v.turret, 3 + v.mount[0] + 8, 4 + v.mount[1])
+  const ox = padX + 4
+  const oy = padY + 3
+  g.drawImage(v.body, ox, oy)
+  const cx = ox + v.body.width / 2
+  const cy = oy + v.body.height / 2
+  g.drawImage(v.turret, cx + v.mount[0] - v.pivot[0], cy + v.mount[1] - v.pivot[1])
   return c
 }
 
@@ -1527,4 +1625,130 @@ export function groundTile() {
     g.fillRect((rand() * 128) | 0, (rand() * 128) | 0, 1, 1)
   }
   return mud
+}
+
+const HEX_CELL = 64
+const hexArtCache = new Map<string, HTMLCanvasElement>()
+
+/** World-map hex cell art — dense mud + ground props, art-bible palette. */
+export function hexTerrain(ground: string, seed: number) {
+  const key = `${ground}:${seed & 7}`
+  const hit = hexArtCache.get(key)
+  if (hit) return hit
+  const n = HEX_CELL
+  const c = cv(n, n)
+  const g = c.getContext("2d")!
+  const rand = rng((seed | 0) * 997 + (ground.charCodeAt(0) || 1) * 131)
+  const mud0 = "#1a1612"
+  const mud1 = "#221e1a"
+  const mud2 = "#2e2a24"
+  const mud3 = "#3a3630"
+  const coat = "#4a4640"
+  const ash = "#5a564e"
+  const lite = "#6a655c"
+  const oxide = "#6a4030"
+  const ink = "#0c0b09"
+  // ground-tinted base so cell type reads at map scale
+  g.fillStyle = ground === "bog" ? "#242820" : ground === "teeth" ? mud3 : mud2
+  g.fillRect(0, 0, n, n)
+  for (let i = 0; i < 900; i++) {
+    g.fillStyle = [mud0, mud1, mud2, mud3, ash][(rand() * 5) | 0]
+    g.fillRect((rand() * n) | 0, (rand() * n) | 0, 1, 1)
+  }
+  for (let i = 0; i < 8; i++) {
+    const px = 2 + ((rand() * (n - 12)) | 0)
+    const py = 2 + ((rand() * (n - 10)) | 0)
+    const sw = 5 + ((rand() * 10) | 0)
+    g.fillStyle = rand() > 0.45 ? mud0 : mud1
+    g.fillRect(px, py, sw, Math.max(3, sw - 2))
+  }
+  for (let i = 0; i < 5; i++) {
+    const rx = 2 + ((rand() * (n - 18)) | 0)
+    const ry = 4 + ((rand() * (n - 10)) | 0)
+    const rw = 10 + ((rand() * 14) | 0)
+    g.fillStyle = mud0
+    g.fillRect(rx, ry, rw, 1)
+    if (rand() > 0.35) g.fillRect(rx + 1, ry + 2, rw - 2, 1)
+  }
+
+  if (ground === "timber") {
+    for (let t = 0; t < 4; t++) {
+      const x = 4 + t * 15 + ((rand() * 3) | 0)
+      const lean = ((rand() * 3) | 0) - 1
+      rects(g, ink, [
+        [x + lean, 14, 5, 36],
+        [x - 3 + lean, 8, 7, 6],
+        [x + 4 + lean, 6, 6, 7],
+        [x + lean, 4, 4, 4],
+      ])
+      rects(g, mud1, [[x + 1 + lean, 16, 3, 28]])
+      rects(g, mud3, [[x - 2 + lean, 10, 4, 3], [x + 5 + lean, 7, 3, 3]])
+    }
+    for (let i = 0; i < 40; i++) {
+      g.fillStyle = mud0
+      g.fillRect((rand() * n) | 0, 36 + ((rand() * 22) | 0), 1 + ((rand() * 2) | 0), 1)
+    }
+  } else if (ground === "yard") {
+    rects(g, lite, [[6, 28, 22, 7]])
+    rects(g, ash, [[6, 35, 22, 8]])
+    rects(g, coat, [[6, 43, 22, 6]])
+    rects(g, mud1, [[5, 48, 24, 4], [26, 30, 6, 14]])
+    rects(g, mud3, [[10, 26, 12, 3]])
+    rects(g, mud2, [[36, 32, 18, 8]])
+    rects(g, ash, [[37, 28, 12, 5]])
+    rects(g, oxide, [[38, 36, 4, 3], [46, 34, 3, 3]])
+    rects(g, ink, [[36, 40, 18, 3]])
+    rects(g, mud1, [[28, 12, 4, 16], [25, 14, 10, 3]])
+    rects(g, coat, [[29, 12, 2, 2]])
+  } else if (ground === "bog") {
+    for (let i = 0; i < 10; i++) {
+      const px = 2 + ((rand() * (n - 16)) | 0)
+      const py = 6 + ((rand() * (n - 20)) | 0)
+      const sw = 10 + ((rand() * 16) | 0)
+      g.fillStyle = i % 2 ? "#2a3024" : "#1c2018"
+      g.fillRect(px, py, sw, 4 + ((rand() * 5) | 0))
+    }
+    for (let i = 0; i < 14; i++) {
+      const x = 3 + ((rand() * (n - 6)) | 0)
+      const y = 8 + ((rand() * (n - 18)) | 0)
+      const h = 5 + ((rand() * 6) | 0)
+      rects(g, "#3a4034", [[x, y, 2, h]])
+      rects(g, "#4a5044", [[x, y, 2, 1]])
+    }
+    for (let i = 0; i < 90; i++) {
+      g.fillStyle = rand() > 0.5 ? "#1a1e16" : mud0
+      g.fillRect((rand() * n) | 0, (rand() * n) | 0, 1, 1)
+    }
+  } else if (ground === "teeth") {
+    for (let row = 0; row < 3; row++) {
+      for (let i = 0; i < 3; i++) {
+        const x = 4 + i * 18 + (row % 2) * 6
+        const y = 8 + row * 16
+        const h = 11 + ((rand() * 4) | 0)
+        rects(g, lite, [[x + 1, y, 8, 2]])
+        rects(g, ash, [[x, y + 2, 10, h - 3]])
+        rects(g, coat, [[x, y + h - 1, 10, 3]])
+        rects(g, mud1, [[x, y + h + 1, 10, 2]])
+        rects(g, mud3, [[x + 3, y + 3, 3, 2]])
+      }
+    }
+  } else {
+    for (let i = 0; i < 4; i++) {
+      const rx = 3 + ((rand() * 24) | 0)
+      const ry = 10 + i * 12 + ((rand() * 4) | 0)
+      g.fillStyle = mud0
+      g.fillRect(rx, ry, 28 + ((rand() * 14) | 0), 2)
+      g.fillRect(rx + 2, ry + 3, 24, 1)
+    }
+    rects(g, mud1, [[14, 36, 10, 5], [38, 22, 8, 6], [44, 40, 7, 4]])
+    rects(g, ash, [[16, 34, 6, 2]])
+    for (let i = 0; i < 50; i++) {
+      g.fillStyle = ash
+      g.fillRect((rand() * n) | 0, (rand() * n) | 0, 1, 1)
+    }
+  }
+
+  shadeFlat(c)
+  hexArtCache.set(key, c)
+  return c
 }

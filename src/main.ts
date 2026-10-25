@@ -4,6 +4,7 @@ import {
   bankFinds,
   cardCost,
   deployCost,
+  ensureMap,
   load,
   research,
   restart,
@@ -12,19 +13,21 @@ import {
   stockOf,
   type Profile,
 } from "./meta/profile"
+import { fitHexSize, hexCorners, layoutHex, type FieldNode } from "./meta/worldmap"
 import { policy } from "./bot/policy"
 import {
   makeRun,
   step,
   takeBursts,
   balanceLine,
+  commitMap,
   type Commands,
   type Diff,
   type World,
 } from "./sim/world"
 import { audioPrefs, setAudio, thuds, unlockAudio } from "./view/audio"
 import { burstsToParticles, ditherPrefs, draw, hpColor, paintDither, setDither, type Dither, type Particle } from "./view/draw"
-import { preview } from "./view/sprites"
+import { hexTerrain, preview } from "./view/sprites"
 
 const canvas = document.querySelector<HTMLCanvasElement>("#view")!
 const ctx = canvas.getContext("2d")!
@@ -46,6 +49,7 @@ const spreadBtn = document.querySelector<HTMLButtonElement>("#spread")!
 const botBtn = document.querySelector<HTMLButtonElement>("#bot")!
 const toolbarEl = document.querySelector<HTMLElement>("#toolbar")!
 const rosterEl = document.querySelector<HTMLElement>("#roster")!
+const kitEl = document.querySelector<HTMLElement>("#kit")!
 const toastsEl = document.querySelector<HTMLElement>("#toasts")!
 const stick = document.querySelector<HTMLElement>("#stick")!
 const knob = document.querySelector<HTMLElement>("#knob")!
@@ -66,6 +70,7 @@ let stickY = 0
 let stickId: number | null = null
 let last = performance.now()
 let toolSig = ""
+let lastKitSig: string | null = null
 let settled = false
 const parts: Particle[] = []
 
@@ -252,6 +257,184 @@ function paintDeck() {
 
 paintDeck()
 
+const builderEl = document.querySelector<HTMLElement>("#builder")!
+const worldPane = document.querySelector<HTMLElement>("#world-pane")!
+const worldMap = document.querySelector<HTMLCanvasElement>("#world-map")!
+const worldCtx = worldMap.getContext("2d")!
+const tabDeck = document.querySelector<HTMLButtonElement>("#tab-deck")!
+const tabWorld = document.querySelector<HTMLButtonElement>("#tab-world")!
+const worldTitle = document.querySelector<HTMLElement>("#world-title")!
+const worldSub = document.querySelector<HTMLElement>("#world-sub")!
+const worldStats = document.querySelector<HTMLElement>("#world-stats")!
+let menuTab: "deck" | "world" = "deck"
+let worldPick: number | null = null
+
+const GROUND_LABEL: Record<string, string> = {
+  open: "OPEN",
+  timber: "TIMBER",
+  yard: "YARD",
+  bog: "BOG",
+  teeth: "TEETH",
+}
+
+function paintWorldDetail(node: FieldNode | null, startId: number) {
+  if (!node) {
+    worldTitle.textContent = "FIELD"
+    worldSub.textContent = "Tap a node."
+    worldStats.replaceChildren()
+    return
+  }
+  const home = node.id === startId
+  worldTitle.textContent = node.visited ? `FIELD ${node.id}` : home ? "LZ" : "UNKNOWN"
+  worldSub.textContent = node.visited
+    ? `${GROUND_LABEL[node.ground] ?? node.ground}${home ? " · LZ" : ""}`
+    : home
+      ? "Step-off LZ. Walk paths on the field to open neighbors."
+      : "Unvisited. Residue is fog of war until the section walks it."
+  worldStats.replaceChildren()
+  const rows: [string, string][] = node.visited
+    ? [
+        ["FERAL", node.feral.toFixed(1)],
+        ["RUST", node.rust.toFixed(1)],
+        ["BIO", node.bio.toFixed(1)],
+        ["OXIDE", node.oxide.toFixed(1)],
+        ["SCAR", node.scar.toFixed(1)],
+        ["EXITS", String(node.exits.length)],
+        ["SLEEP", String(node.sleepers.filter((s) => !s.awake).length)],
+        ["LOOT", String(node.loot.length)],
+      ]
+    : [
+        ["EXITS", String(node.exits.length)],
+        ["STATUS", home ? "LZ" : "UNVISITED"],
+      ]
+  for (const [k, v] of rows) {
+    const dt = document.createElement("dt")
+    const dd = document.createElement("dd")
+    dt.textContent = k
+    dd.textContent = v
+    worldStats.append(dt, dd)
+  }
+}
+
+function paintWorld() {
+  const map = ensureMap(profile)
+  const dpr = Math.min(2, window.devicePixelRatio || 1)
+  const css = Math.min(640, worldMap.clientWidth || 640)
+  worldMap.width = Math.floor(css * dpr)
+  worldMap.height = Math.floor(css * dpr)
+  worldMap.style.width = `${css}px`
+  worldMap.style.height = `${css}px`
+  const g = worldCtx
+  g.setTransform(dpr, 0, 0, dpr, 0, 0)
+  g.clearRect(0, 0, css, css)
+  g.fillStyle = "#2a2620"
+  g.fillRect(0, 0, css, css)
+  const cx = css / 2
+  const cy = css / 2
+  const hexSize = fitHexSize(css)
+  const nodes = map.nodes
+  const pts = layoutHex(map, hexSize, cx, cy)
+  const byId = new Map(pts.map((p) => [p.id, p]))
+  const drawR = hexSize * 0.98
+  for (const n of nodes) {
+    const p = byId.get(n.id)
+    if (!p) continue
+    const home = n.id === map.start
+    const picked = worldPick === n.id
+    const corners = hexCorners(p.x, p.y, drawR)
+    const art = hexTerrain(n.ground, n.seed)
+    g.save()
+    g.beginPath()
+    g.moveTo(corners[0].x, corners[0].y)
+    for (let i = 1; i < corners.length; i++) g.lineTo(corners[i].x, corners[i].y)
+    g.closePath()
+    g.clip()
+    g.imageSmoothingEnabled = false
+    const side = drawR * 2
+    g.drawImage(art, p.x - drawR, p.y - drawR, side, side)
+    if (!n.visited && !home) {
+      g.fillStyle = "rgba(12,11,9,0.28)"
+      g.fillRect(p.x - drawR, p.y - drawR, side, side)
+    } else if (n.visited) {
+      const scar = Math.min(1, n.scar / 12)
+      const rust = Math.min(1, n.rust / 18)
+      const feral = Math.min(1, n.feral / 18)
+      if (rust > 0.15) {
+        g.fillStyle = `rgba(106,64,48,${0.12 + rust * 0.22})`
+        g.fillRect(p.x - drawR, p.y - drawR, side, side)
+      }
+      if (feral > 0.2) {
+        g.fillStyle = `rgba(90,24,24,${0.08 + feral * 0.16})`
+        g.fillRect(p.x - drawR, p.y - drawR, side, side)
+      }
+      if (scar > 0.2) {
+        g.fillStyle = `rgba(12,11,9,${0.1 + scar * 0.2})`
+        g.fillRect(p.x - drawR, p.y - drawR, side, side)
+      }
+    } else if (home) {
+      g.fillStyle = "rgba(225,193,90,0.14)"
+      g.fillRect(p.x - drawR, p.y - drawR, side, side)
+    }
+    g.restore()
+    g.beginPath()
+    g.moveTo(corners[0].x, corners[0].y)
+    for (let i = 1; i < corners.length; i++) g.lineTo(corners[i].x, corners[i].y)
+    g.closePath()
+    g.strokeStyle = home || picked ? "#c4a35a" : n.visited ? "#5a564e" : "#3a3832"
+    g.lineWidth = home || picked ? 2.25 : 1.1
+    g.stroke()
+    if (home || picked) {
+      g.fillStyle = "#e1c15a"
+      g.font = `${Math.max(8, Math.min(11, (hexSize * 0.42) | 0))}px ui-monospace, SFMono-Regular, Menlo, monospace`
+      g.textAlign = "center"
+      g.textBaseline = "middle"
+      g.fillText(home ? "LZ" : n.visited ? String(n.id) : "?", p.x, p.y)
+    }
+  }
+  const focus = nodes.find((n) => n.id === worldPick) ?? nodes.find((n) => n.id === map.start) ?? nodes[0]
+  if (worldPick == null && focus) worldPick = focus.id
+  paintWorldDetail(focus ?? null, map.start)
+}
+
+function setMenuTab(tab: "deck" | "world") {
+  menuTab = tab
+  const onWorld = tab === "world"
+  builderEl.classList.toggle("hidden", onWorld)
+  worldPane.classList.toggle("hidden", !onWorld)
+  tabDeck.classList.toggle("on", !onWorld)
+  tabWorld.classList.toggle("on", onWorld)
+  tabDeck.setAttribute("aria-selected", String(!onWorld))
+  tabWorld.setAttribute("aria-selected", String(onWorld))
+  if (onWorld) paintWorld()
+}
+
+tabDeck.addEventListener("click", () => setMenuTab("deck"))
+tabWorld.addEventListener("click", () => setMenuTab("world"))
+worldMap.addEventListener("click", (e) => {
+  const map = ensureMap(profile)
+  const rect = worldMap.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+  const css = rect.width || 640
+  const hexSize = fitHexSize(css)
+  const pts = layoutHex(map, hexSize, css / 2, css / 2)
+  let best = -1
+  let bestD = hexSize * 0.9
+  for (let i = 0; i < pts.length; i++) {
+    const d = Math.hypot(pts[i].x - x, pts[i].y - y)
+    if (d < bestD) {
+      bestD = d
+      best = i
+    }
+  }
+  if (best < 0) return
+  worldPick = pts[best].id
+  paintWorld()
+})
+window.addEventListener("resize", () => {
+  if (menuTab === "world") paintWorld()
+})
+
 document.querySelector("#clear")!.addEventListener("click", () => {
   deck.length = 0
   paintDeck()
@@ -277,8 +460,10 @@ document.querySelector("#restart")!.addEventListener("click", () => {
   restart(profile)
   deck.length = 0
   restartArm = false
+  worldPick = null
   warn("")
   paintDeck()
+  if (menuTab === "world") paintWorld()
 })
 document.querySelector("#deploy")!.addEventListener("click", () => start(false))
 document.querySelector("#deploy-bot")!.addEventListener("click", () => start(true))
@@ -537,15 +722,18 @@ function start(asBot: boolean) {
   botBtn.textContent = bot ? "BOT ON" : "BOT OFF"
   const seed = Number(seedEl.value) || 1
   const hidden = CARDS.filter((c) => c.deck && !profile.found.includes(c.id)).map((c) => c.id)
+  const map = ensureMap(profile)
   world = makeRun(seed, deck, {
     diff: diff(),
     hidden,
     known: profile.known.slice(),
     heroes: profile.heroes,
     wear,
+    map,
   })
   parts.length = 0
   toolSig = ""
+  lastKitSig = null
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
   deckEl.classList.add("hidden")
   endEl.classList.add("hidden")
@@ -612,16 +800,50 @@ function clock(t: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`
 }
 
+/** Guns first (primary, then secondary), then attachments, then body kit. */
+function kitIds(gears: string[]) {
+  const guns: string[] = []
+  const bits: string[] = []
+  const body: string[] = []
+  for (const id of gears) {
+    const c = card(id)
+    if (c.gun) {
+      if (c.hand === "secondary") guns.push(id)
+      else guns.unshift(id)
+    } else if (c.slot) bits.push(id)
+    else body.push(id)
+  }
+  return [...guns, ...bits, ...body]
+}
+
 function paintHud(w: World) {
   document.querySelector("#timer")!.textContent = `${clock(w.t)}${speed > 1 ? "  2×" : ""}`
   document.querySelector("#kills")!.textContent = `KILLS ${w.kills}`
   const cr = document.querySelector("#credits")
-  if (cr) cr.textContent = `CR ${profile.credits + w.credits}`
+  if (cr) cr.textContent = `CR ${w.credits}`
   document.querySelector("#group-label")!.textContent = w.groupLabel
   document.querySelector("#spread-label")!.textContent = w.spreadLabel
 
   const people = w.bodies.filter((b) => b.alive && b.inSection && b.side === "player")
   const firstCell = w.bodies.find((b) => b.kind === "cell_rifle")?.id ?? -1
+  const lead = people.find((b) => b.id === w.commander) ?? people[0]
+  const kitSig = lead && !lead.vehicle ? kitIds(lead.gears).join(",") : ""
+  if (kitSig !== lastKitSig) {
+    if (lastKitSig !== null && kitSig) {
+      kitEl.classList.remove("snap")
+      void kitEl.offsetWidth
+      kitEl.classList.add("snap")
+    }
+    lastKitSig = kitSig
+  }
+  kitEl.replaceChildren()
+  if (lead && !lead.vehicle) {
+    const tag = document.createElement("span")
+    tag.className = "tag"
+    tag.textContent = "KIT"
+    kitEl.append(tag)
+    for (const id of kitIds(lead.gears)) kitEl.append(preview(id, 16))
+  }
   rosterEl.replaceChildren()
   for (const b of people) {
     const name = document.createElement("span")
@@ -635,7 +857,10 @@ function paintHud(w: World) {
     bar.append(i)
     const st = document.createElement("span")
     st.textContent = b.boarded !== null ? "IN" : b.vehicle ? "HULL" : "UP"
-    rosterEl.append(name, bar, st)
+    const kit = document.createElement("span")
+    kit.className = "kit"
+    if (!b.vehicle) for (const id of kitIds(b.gears).slice(0, 4)) kit.append(preview(id, 16))
+    rosterEl.append(name, bar, st, kit)
   }
 
   toastsEl.replaceChildren()
@@ -733,6 +958,8 @@ function finish() {
   ]
   profile.credits += world.credits
   world.credits = 0
+  commitMap(world)
+  profile.map = world.map
   settleHeroes(profile, world)
   const freshFinds = bankFinds(profile, world.found)
   if (freshFinds.length) {

@@ -1,5 +1,5 @@
 import { card } from "../content/catalog"
-import { BEAM_ARC, BEAM_R, CRAFT_WAIT, FLARE_ARM, FLARE_R, GAP_MAX, PATH_HOLD, beams, daylight, type Body, type Burst, type Inbound, type World } from "../sim/world"
+import { BEAM_ARC, BEAM_R, CRAFT_WAIT, FLARE_ARM, FLARE_R, GAP_MAX, PATH_HOLD, beams, daylight, trackerTargets, type Body, type Burst, type Flash, type Inbound, type World } from "../sim/world"
 import {
   footAnim,
   hullMotion,
@@ -54,8 +54,8 @@ export type Particle = {
 
 const TINT: Record<Burst["tint"], string> = {
   blood: "#a32020",
-  oxide: "#3ecfc2",
-  dust: "#d5d0c6",
+  oxide: "#8a5040",
+  dust: "#3a3630",
   flash: "#e1c15a",
 }
 
@@ -102,7 +102,7 @@ const ditherSet: Dither = {
   blend: "over",
   layer: "top",
 }
-const INK: Record<Ink, string> = { black: "#000", white: "#e8e2d0", mud: "#6a5a3a", oxide: "#3ecfc2" }
+const INK: Record<Ink, string> = { black: "#0c0b09", white: "#a8a49c", mud: "#2e2a24", oxide: "#8a5040" }
 const COMP: Record<Blend, GlobalCompositeOperation> = { over: "source-over", mul: "multiply", add: "lighter" }
 
 export function ditherPrefs(): Dither {
@@ -178,7 +178,7 @@ function paintGround(g: CanvasRenderingContext2D, bw: number, bh: number, cx: nu
   const n = tile.width
   g.setTransform(1, 0, 0, 1, 0, 0)
   g.imageSmoothingEnabled = false
-  g.fillStyle = "#2a2622"
+  g.fillStyle = "#221e1a"
   g.fillRect(0, 0, bw, bh)
   const span = 16
   const originX = Math.round(bw / 2 - cx * zoom)
@@ -215,6 +215,8 @@ export function draw(
   const g = buf.getContext("2d")
   if (!g) return
   g.imageSmoothingEnabled = false
+  // Buffer blit is 1:1 native px — zoom only maps world→screen. Keep pre-pass bases
+  // so stick travel (speed×zoom px/s) and field framing stay readable on mobile.
   const base = bw < 200 ? 4.5 : 6
   const open = Math.max(0, Math.min(1, w.gap / GAP_MAX))
   const target = base * (1 - 0.52 * open)
@@ -272,7 +274,7 @@ export function draw(
       g.globalAlpha = 0.55
       g.drawImage(veh.body, px - veh.body.width / 2, py - veh.body.height / 2)
       g.globalAlpha = 1
-      g.fillStyle = "#3ecfc2"
+      g.fillStyle = "#8a5040"
       g.fillRect(px - 1, py - veh.body.height / 2 - 2, 2, 2)
     } else {
       const spr = scenery("wreck", s.id)
@@ -298,11 +300,19 @@ export function draw(
       continue
     }
     if (d.kind !== "gear") continue
-    const spr = d.skin === "item" ? icon(d.cardId) ?? scenery("crate") : scenery("crate")
-    if (!spr) continue
     const fade = revealAlpha(w, 0, d.id)
     g.globalAlpha = fade < 1 ? fade : Math.floor(w.t * 4) % 2 === 0 ? 0.55 : 1
-    blit(g, spr, X(d.x), Y(d.y))
+    const gx = X(d.x)
+    const gy = Y(d.y)
+    const mark = icon(d.cardId)
+    if (d.skin === "item") {
+      const spr = mark ?? scenery("crate")
+      if (spr) blit(g, spr, gx, gy)
+    } else {
+      const box = scenery("crate")
+      if (box) blit(g, box, gx, gy)
+      if (mark) blit(g, mark, gx, gy - (box ? Math.max(4, (box.height / 2) | 0) : 6))
+    }
     g.globalAlpha = 1
   }
 
@@ -331,7 +341,7 @@ export function draw(
       g.drawImage(hull, -hull.width / 2, -hull.height / 2)
       const wheels = b.parts.filter((p) => p.id === "wheel" && !p.on).length
       if (wheels) {
-        g.fillStyle = "#2a2622"
+        g.fillStyle = "#221e1a"
         g.fillRect(-6, veh.body.height / 2 - 4, wheels > 1 ? 12 : 4, 3)
       }
       if (b.parts.some((p) => p.id === "turret" && p.on)) {
@@ -360,7 +370,7 @@ export function draw(
       for (const u of w.bodies) if (u.alive && u.boarded === b.id) n++
       const seats = Math.min(4, b.seats)
       for (let i = 0; i < seats; i++) {
-        g.fillStyle = i < n ? "#c0c0c0" : "#1a1612"
+        g.fillStyle = i < n ? "#a8a49c" : "#1a1612"
         g.fillRect(x - (seats * 3) / 2 + i * 3, y - 20, 2, 2)
       }
     }
@@ -383,7 +393,7 @@ export function draw(
   g.globalAlpha = 1
 
   for (const b of w.bolts) {
-    g.fillStyle = b.side === "rust" ? "#3ecfc2" : "#a32020"
+    g.fillStyle = b.side === "rust" ? "#8a5040" : "#a32020"
     g.fillRect(X(b.x) - 1, Y(b.y) - 4, 2, 2)
   }
 
@@ -423,7 +433,9 @@ export function draw(
   for (const p of parts) {
     g.globalAlpha = Math.max(0, p.life / p.max)
     g.fillStyle = TINT[p.tint]
-    g.fillRect(X(p.x), Y(p.y), p.size, p.size)
+    // Hard pixel cores only (bible: soft bloom ≤2 px, keep contours).
+    const s = Math.max(1, Math.min(3, p.size | 0))
+    g.fillRect(X(p.x), Y(p.y), s, s)
   }
   g.globalAlpha = 1
 
@@ -471,8 +483,11 @@ export function draw(
     ctx.restore()
   }
   paintTags(ctx, w, width, height, bw, bh, zoom, cx, cy)
+  paintTracker(ctx, w, width, height, bw, bh, zoom, cx, cy)
   paintPins(ctx, w, width, height, bw, bh, zoom, cx, cy)
   paintSignals(ctx, w, width, height, bw, bh, zoom, cx, cy)
+  // After grade/vignette so gold cores survive; CSS px so they read on phone.
+  paintFlashes(ctx, w, width, height, bw, bh, zoom, cx, cy)
 }
 
 const CABLE = 7
@@ -486,7 +501,8 @@ function cargoOf(w: World, f: Inbound) {
   if (hero) return cargo(hero.chassis)
   if (f.loot) return cargo(null)
   const kind = card(f.cardId).kind
-  return cargo(kind === "unit" || kind === "vehicle" ? f.cardId : null)
+  if (kind === "unit" || kind === "vehicle") return cargo(f.cardId)
+  return cargo(f.cardId, true)
 }
 
 function paintDrone(
@@ -673,6 +689,23 @@ function paintNight(
     s.closePath()
     s.fill()
   }
+  // Muzzle flashes punch real light holes in the night veil.
+  for (const f of w.flashes) {
+    if (f.light <= 0) continue
+    const tip = f.from != null ? muzzleScreen(w, f.from, X, Y, zoom) : null
+    const x = tip?.x ?? X(f.x)
+    const y = tip?.y ?? Y(f.y) - 4
+    const fade = 0.45 + 0.55 * (f.life / f.max)
+    const r = f.light * zoom * fade
+    const grd = s.createRadialGradient(x, y, 0, x, y, r)
+    grd.addColorStop(0, "rgba(0,0,0,1)")
+    grd.addColorStop(0.45, "rgba(0,0,0,0.9)")
+    grd.addColorStop(1, "rgba(0,0,0,0)")
+    s.fillStyle = grd
+    s.beginPath()
+    s.arc(x, y, r, 0, Math.PI * 2)
+    s.fill()
+  }
   s.globalCompositeOperation = "source-over"
   g.drawImage(shade, 0, 0)
   const glow = 0.14 * dusk
@@ -690,6 +723,24 @@ function paintNight(
       g.closePath()
       g.fill()
     }
+  }
+  // Warm flash bloom in the punched light (scarce gold).
+  for (const f of w.flashes) {
+    if (f.light <= 0) continue
+    const tip = f.from != null ? muzzleScreen(w, f.from, X, Y, zoom) : null
+    const x = tip?.x ?? X(f.x)
+    const y = tip?.y ?? Y(f.y) - 4
+    const fade = f.life / f.max
+    const r = f.light * zoom * (0.45 + 0.55 * fade)
+    const a = (0.1 + 0.22 * fade) * dusk
+    const grd = g.createRadialGradient(x, y, 0, x, y, r)
+    grd.addColorStop(0, `rgba(225,193,90,${a})`)
+    grd.addColorStop(0.4, `rgba(225,193,90,${a * 0.45})`)
+    grd.addColorStop(1, "rgba(225,193,90,0)")
+    g.fillStyle = grd
+    g.beginPath()
+    g.arc(x, y, r, 0, Math.PI * 2)
+    g.fill()
   }
 }
 
@@ -720,7 +771,6 @@ function paintTags(
   const sx = (x: number) => ((bw / 2 + (x - cx) * zoom) / bw) * width
   const sy = (y: number) => ((bh / 2 - (y - cy) * zoom) / bh) * height
   ctx.save()
-  ctx.font = "12px VGA, monospace"
   ctx.textBaseline = "top"
   ctx.lineWidth = 1
   for (const t of w.tags) {
@@ -728,34 +778,73 @@ function paintTags(
     const y = sy(t.y)
     const flavour = t.kind === "line"
     const soft = flavour || t.kind === "down" || t.kind === "chip"
+    const haul = t.kind === "find" || t.kind === "loot" || t.kind === "bounty"
+    const pop = haul ? Math.min(1, t.life / 3.4) : 1
     const ang = -0.7 + t.slot * 0.42
-    const rad = soft ? 40 : 70
+    const rad = soft ? 40 : haul ? 78 + (1 - pop) * 18 : 70
     const px = x + Math.cos(ang) * rad
     const py = y + Math.sin(ang) * rad * 0.65
     const col =
       t.kind === "kia" || t.kind === "part"
         ? "#a32020"
-        : t.kind === "find" || t.kind === "loot" || t.kind === "bounty"
+        : haul
           ? "#e1c15a"
           : soft
             ? "#8a8a8a"
-            : "#c0c0c0"
-    ctx.globalAlpha = soft ? 0.4 : Math.max(0.25, Math.min(1, t.life))
+            : "#a8a49c"
+    ctx.font = haul ? "14px VGA, monospace" : "12px VGA, monospace"
+    ctx.globalAlpha = soft ? 0.4 : Math.max(0.3, Math.min(1, haul ? 0.45 + pop * 0.55 : t.life))
     ctx.strokeStyle = col
     ctx.beginPath()
     ctx.moveTo(x, y - 6)
     ctx.lineTo(px, py + 6)
     ctx.stroke()
-    const arm = soft ? 6 : 10
+    const arm = soft ? 6 : haul ? 12 + Math.round((1 - pop) * 4) : 10
     corner(ctx, x, y, -arm, -arm, 4, 4)
     corner(ctx, x, y, arm, -arm, -4, 4)
     corner(ctx, x, y, -arm, arm, 4, -4)
     corner(ctx, x, y, arm, arm, -4, -4)
     const tw = ctx.measureText(t.text).width
-    ctx.fillStyle = "rgba(0,0,0,.78)"
-    ctx.fillRect(px, py, tw + 6, 14)
+    const th = haul ? 16 : 14
+    ctx.fillStyle = "rgba(0,0,0,.85)"
+    ctx.fillRect(px, py, tw + 8, th)
     ctx.fillStyle = col
-    ctx.fillText(t.text, px + 3, py + 1)
+    ctx.fillText(t.text, px + 4, py + (haul ? 1 : 1))
+  }
+  ctx.restore()
+}
+
+function paintTracker(
+  ctx: CanvasRenderingContext2D,
+  w: World,
+  width: number,
+  height: number,
+  bw: number,
+  bh: number,
+  zoom: number,
+  cx: number,
+  cy: number,
+) {
+  const marks = trackerTargets(w)
+  if (!marks.length) return
+  const { sx, sy } = screenOf(width, height, bw, bh, zoom, cx, cy)
+  const col = "#a8a49c"
+  const arm = 10
+  ctx.save()
+  ctx.lineWidth = 1
+  ctx.strokeStyle = col
+  ctx.globalAlpha = 0.7
+  for (const b of marks) {
+    const x = sx(b.x)
+    const y = sy(b.y)
+    if (x < 8 || x > width - 8 || y < 8 || y > height - 8) {
+      edgeArrow(ctx, x, y, width, height, col)
+      continue
+    }
+    corner(ctx, x, y, -arm, -arm, 4, 4)
+    corner(ctx, x, y, arm, -arm, -4, 4)
+    corner(ctx, x, y, -arm, arm, 4, -4)
+    corner(ctx, x, y, arm, arm, -4, -4)
   }
   ctx.restore()
 }
@@ -766,6 +855,110 @@ function corner(ctx: CanvasRenderingContext2D, x: number, y: number, dx: number,
   ctx.lineTo(x + dx, y + dy)
   ctx.lineTo(x + dx + hx, y + dy)
   ctx.stroke()
+}
+
+/** Muzzle flashes on the CSS canvas (after grade) so gold cores stay readable. */
+function paintFlashes(
+  ctx: CanvasRenderingContext2D,
+  w: World,
+  width: number,
+  height: number,
+  bw: number,
+  bh: number,
+  zoom: number,
+  cx: number,
+  cy: number,
+) {
+  if (!w.flashes.length) return
+  const scale = width / bw
+  const Xb = (x: number) => Math.round(bw / 2 + (x - cx) * zoom)
+  const Yb = (y: number) => Math.round(bh / 2 - (y - cy) * zoom)
+  const cell = Math.max(2, Math.round(scale))
+  ctx.save()
+  ctx.imageSmoothingEnabled = false
+  for (const f of w.flashes) {
+    const tip = f.from != null ? muzzleScreen(w, f.from, Xb, Yb, zoom) : null
+    const ox = tip ? tip.x * scale : ((bw / 2 + (f.x - cx) * zoom) / bw) * width
+    const oy = tip ? tip.y * scale : ((bh / 2 - (f.y - cy) * zoom) / bh) * height
+    const a = Math.max(0, f.life / f.max)
+    ctx.globalAlpha = 0.55 + 0.45 * a
+    // World +y is screen -y.
+    const fx = Math.cos(f.hdg)
+    const fy = -Math.sin(f.hdg)
+    const along = Math.max(1, Math.round(f.along * scale))
+    const across = Math.max(1, Math.round(f.across * scale))
+    const rim = f.rim ?? f.core
+    const px = (dx: number, dy: number, col: string, big = false) => {
+      const s = big ? cell + 1 : cell
+      ctx.fillStyle = col
+      ctx.fillRect(Math.round(ox + dx - s / 2), Math.round(oy + dy - s / 2), s, s)
+    }
+    paintFlashShape(f.shape, along, across, fx, fy, a, f.core, rim, px)
+  }
+  ctx.restore()
+}
+
+function paintFlashShape(
+  shape: Flash["shape"],
+  along: number,
+  across: number,
+  fx: number,
+  fy: number,
+  a: number,
+  core: string,
+  rim: string,
+  px: (dx: number, dy: number, col: string, big?: boolean) => void,
+) {
+  if (shape === "dot") {
+    px(0, 0, core, true)
+    if (a > 0.35) px(fx * along * 0.5, fy * along * 0.5, rim)
+  } else if (shape === "cross") {
+    px(0, 0, core, true)
+    for (let i = 1; i <= along; i++) px(fx * i, fy * i, i <= 2 ? core : rim, i === 1)
+    const nx = -fy
+    const ny = fx
+    for (let i = 1; i <= across; i++) {
+      px(nx * i, ny * i, rim)
+      px(-nx * i, -ny * i, rim)
+    }
+  } else if (shape === "spike") {
+    px(0, 0, core, true)
+    for (let i = 1; i <= along; i++) px(fx * i, fy * i, i < 4 ? core : rim, i < 2)
+  } else if (shape === "cone") {
+    px(0, 0, core, true)
+    const nx = -fy
+    const ny = fx
+    for (let i = 1; i <= along + 1; i++) {
+      const spread = Math.max(1, Math.round((across * i) / (along + 1)))
+      for (let s = -spread; s <= spread; s++) {
+        px(fx * i + nx * s, fy * i + ny * s, Math.abs(s) <= 1 ? core : rim, i === 1 && s === 0)
+      }
+    }
+  } else if (shape === "bloom") {
+    px(0, 0, core, true)
+    px(fx >= 0 ? 2 : -2, 0, core)
+    px(0, fy >= 0 ? 2 : -2, rim)
+    for (let i = 1; i <= along; i++) px(fx * i, fy * i, i <= 2 ? core : rim, i === 1)
+    const nx = -fy
+    const ny = fx
+    for (let i = 1; i <= across; i++) {
+      px(nx * i, ny * i, rim)
+      px(-nx * i, -ny * i, rim)
+    }
+  } else if (shape === "bolt") {
+    px(0, 0, core, true)
+    for (let i = 1; i <= along; i++) {
+      const wobble = i % 2 === 0 ? 1 : -1
+      px(fx * i + -fy * wobble * 2, fy * i + fx * wobble * 2, i < 4 ? core : rim, i < 2)
+    }
+  } else if (shape === "puff") {
+    px(0, 0, core, true)
+    px(across * 0.4, 0, rim)
+    px(-across * 0.4, 0, rim)
+    px(0, across * 0.4, rim)
+    px(0, -across * 0.4, rim)
+    px(fx * along, fy * along, rim)
+  }
 }
 
 /** Screen muzzle from the same stamp rotate as `drawLayered`. */
@@ -849,14 +1042,14 @@ function paintFoot(
       thermal ? heatOf : undefined,
     )
     if (!size) {
-      g.fillStyle = b.side === "player" ? "#c0c0c0" : b.side === "rust" ? "#3ecfc2" : "#6a3030"
+      g.fillStyle = b.side === "player" ? "#a8a49c" : b.side === "rust" ? "#8a5040" : "#6a3030"
       g.fillRect(px - 2, py - 8 - lift, 4, 8)
     }
     return
   }
   const spr = actor(b.kind, a.pose, b.face < 0, kit)
   if (!spr) {
-    g.fillStyle = b.side === "player" ? "#c0c0c0" : b.side === "rust" ? "#3ecfc2" : "#6a3030"
+    g.fillStyle = b.side === "player" ? "#a8a49c" : b.side === "rust" ? "#8a5040" : "#6a3030"
     g.fillRect(px - 2, py - 8 - lift, 4, 8)
     return
   }
@@ -883,15 +1076,17 @@ function paintSoft(
 ) {
   const body = thermal ? "#f4e7a8" : soft.color
   const tip = thermal ? "#f4e7a8" : soft.tip
+  // Skip points that leave the stamp footprint (detached “offset” pixels).
+  const maxR = 6
   for (const chain of soft.chains) {
     for (let i = 1; i < chain.length; i++) {
       const p = chain[i]
       const sx = Math.round(x + (p.x - b.x) * zoom)
       const sy = Math.round(y - (p.y - b.y) * zoom)
+      if (Math.hypot(sx - x, sy - y) > maxR) continue
       const last = i === chain.length - 1
       g.fillStyle = last ? tip : body
-      const s = last ? 2 : 1
-      g.fillRect(sx - (s > 1 ? 1 : 0), sy - (s > 1 ? 1 : 0), s, s)
+      g.fillRect(sx, sy, 1, 1)
     }
   }
 }
@@ -925,7 +1120,7 @@ function softSeek(w: World, b: Body): { x: number; y: number } | null {
 function gash(g: CanvasRenderingContext2D, spr: HTMLCanvasElement, x: number, y: number, b: { face: number; parts: { id: string; on: boolean }[] }) {
   const left = x - spr.width / 2
   const top = y - spr.height / 2
-  g.fillStyle = "#2a2622"
+  g.fillStyle = "#221e1a"
   const legs = b.parts.filter((p) => p.id === "leg" && !p.on).length
   if (legs >= 1) g.fillRect(left + (b.face < 0 ? spr.width - 4 : 1), top + spr.height - 3, 2, 3)
   if (legs >= 2) g.fillRect(left + (b.face < 0 ? 1 : spr.width - 4), top + spr.height - 3, 2, 3)
@@ -1016,19 +1211,45 @@ function paintPins(
   cy: number,
 ) {
   const { sx, sy } = screenOf(width, height, bw, bh, zoom, cx, cy)
-  const pins: { x: number; y: number; col: string }[] = []
-  for (const d of w.drops) if (!d.taken) pins.push({ x: d.x, y: d.y, col: d.kind === "loot" ? "#8a8a8a" : "#e1c15a" })
+  const pins: { x: number; y: number; col: string; label?: string }[] = []
+  for (const d of w.drops) {
+    if (d.taken) continue
+    if (d.kind === "loot") pins.push({ x: d.x, y: d.y, col: "#8a8a8a", label: d.cardId.toUpperCase() })
+    else if (d.kind === "gear") pins.push({ x: d.x, y: d.y, col: "#e1c15a", label: card(d.cardId).name })
+    else pins.push({ x: d.x, y: d.y, col: "#e1c15a" })
+  }
   for (const b of w.bodies) {
     if (!b.alive) continue
     if (b.vehicle) {
-      if (!w.bodies.some((u) => u.alive && u.boarded === b.id)) pins.push({ x: b.x, y: b.y, col: "#c0c0c0" })
+      if (!w.bodies.some((u) => u.alive && u.boarded === b.id)) pins.push({ x: b.x, y: b.y, col: "#a8a49c" })
     } else if (b.inSection && b.boarded === null && Math.hypot(b.x - cx, b.y - cy) > 10) {
       pins.push({ x: b.x, y: b.y, col: "#a32020" })
     }
   }
-  for (const p of pins) edgeArrow(ctx, sx(p.x), sy(p.y), width, height, p.col)
+  const pinMarks: SignalMark[] = pins.map((p) => ({
+    x: sx(p.x),
+    y: sy(p.y),
+    col: p.col,
+    word: p.label ?? "",
+  }))
+  for (const row of placeEdgePins(pinMarks, width, height, 40)) {
+    if (!row.tip) continue
+    paintEdgeArrow(ctx, row.tip.x, row.tip.y, row.tip.ang, row.mark.col)
+    if (row.mark.word) plate(ctx, row.tip.x, row.tip.y - 28, row.mark.word, row.mark.col)
+  }
 
-  const seen: { x: number; y: number; text: string; d: number; hot: boolean }[] = []
+  const seen: { x: number; y: number; text: string; d: number; hot: boolean; gold?: boolean }[] = []
+  for (const d of w.drops) {
+    if (d.taken || (d.kind !== "gear" && d.kind !== "loot")) continue
+    seen.push({
+      x: d.x,
+      y: d.y,
+      text: d.kind === "loot" ? d.cardId.toUpperCase() : card(d.cardId).name,
+      d: Math.hypot(d.x - cx, d.y - cy),
+      hot: false,
+      gold: true,
+    })
+  }
   for (const b of w.bodies) {
     if (b.alive || b.boarded !== null) continue
     if (b.side === "player" && !b.inSection) continue
@@ -1055,18 +1276,32 @@ function paintPins(
   ctx.textBaseline = "top"
   let n = 0
   for (const s of seen) {
-    if (n >= 4) break
+    if (n >= 6) break
     const x = sx(s.x)
     const y = sy(s.y)
     if (x < 8 || x > width - 8 || y < 8 || y > height - 8) continue
     const tw = ctx.measureText(s.text).width
     ctx.fillStyle = "rgba(0,0,0,.78)"
     ctx.fillRect(x + 4, y - 16, tw + 6, 14)
-    ctx.fillStyle = s.hot ? "#a32020" : "#8a8a8a"
+    ctx.fillStyle = s.gold ? "#e1c15a" : s.hot ? "#a32020" : "#8a8a8a"
     ctx.fillText(s.text, x + 7, y - 15)
     n++
   }
   ctx.restore()
+}
+
+const COL_LZ = "#e1c15a"
+const COL_EXIT = "#c8c4bc"
+const COL_STASH = "#9a9a94"
+
+type SignalMark = {
+  x: number
+  y: number
+  col: string
+  word: string
+  size?: number
+  /** Field mark when the target is on-screen. */
+  field?: () => void
 }
 
 function paintSignals(
@@ -1081,94 +1316,221 @@ function paintSignals(
   cy: number,
 ) {
   const { sx, sy } = screenOf(width, height, bw, bh, zoom, cx, cy)
-  ctx.save()
-  ctx.imageSmoothingEnabled = false
+  const scale = width / bw
+  const marks: SignalMark[] = []
   for (const f of w.inbound) {
     const x = sx(f.x)
     const y = sy(f.y)
-    markFlare(ctx, x, y, width, height, 72, w.t)
-  }
-  if (w.lzOn || w.flareOn) {
-    const x = sx(w.flareX)
-    const y = sy(w.flareY)
-    const lzWord =
-      w.banner.startsWith("FLARE") || w.banner.startsWith("CRAFT") || w.banner.startsWith("LOAD") || w.banner === "HOLD THE LZ"
-        ? w.banner
-        : "LZ"
-    const word = lzWord
-    const tip = edgeArrow(ctx, x, y, width, height, "#e1c15a")
-    if (tip) plate(ctx, tip.x, tip.y - 28, word)
-    else {
-      const r = Math.max(28, FLARE_R * zoom * (width / bw))
-      const p = !w.flareOn ? w.flareArm / FLARE_ARM : w.craftOn ? 1 : Math.min(1, w.flareHold / CRAFT_WAIT)
-      ctx.strokeStyle = "#e1c15a"
-      ctx.lineWidth = 2
-      ctx.globalAlpha = 0.45
-      ctx.beginPath()
-      ctx.arc(x, y, r, 0, Math.PI * 2)
-      ctx.stroke()
-      ctx.globalAlpha = 1
-      ctx.lineWidth = 3
-      ctx.beginPath()
-      ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0, Math.min(1, p)))
-      ctx.stroke()
-      if (w.flareOn) column(ctx, x, y, 110, w.t)
-      if (w.flareOn) paintCraft(ctx, x, y, w)
-      plate(ctx, x, y - r - 26, word)
-    }
+    const label = dropLabel(w, f)
+    marks.push({
+      x,
+      y,
+      col: COL_LZ,
+      word: label,
+      field: () => {
+        column(ctx, x, y, 72, w.t)
+        plate(ctx, x, y - 94, label)
+      },
+    })
   }
   if (w.pathOn) {
-    const x = sx(w.pathX)
-    const y = sy(w.pathY)
-    const word = w.pathHold > 0.05 ? `PATH ${Math.max(0, Math.ceil(PATH_HOLD - w.pathHold))}s` : "PATH"
-    const tip = edgeArrow(ctx, x, y, width, height, "#3ecfc2")
-    if (tip) plate(ctx, tip.x, tip.y - 28, word, "#3ecfc2")
-    else {
-      const r = Math.max(28, FLARE_R * zoom * (width / bw))
-      const p = Math.max(0, Math.min(1, w.pathHold / PATH_HOLD))
-      ctx.strokeStyle = "#3ecfc2"
-      ctx.lineWidth = 2
-      ctx.globalAlpha = 0.45
-      ctx.beginPath()
-      ctx.arc(x, y, r, 0, Math.PI * 2)
-      ctx.stroke()
-      ctx.globalAlpha = 1
-      ctx.lineWidth = 3
-      ctx.beginPath()
-      ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * p)
-      ctx.stroke()
-      plate(ctx, x, y - r - 26, word, "#3ecfc2")
-    }
+    const many = w.paths.length > 1
+    w.paths.forEach((exit, i) => {
+      if (!exit.open) return
+      const x = sx(exit.x)
+      const y = sy(exit.y)
+      const left = Math.max(0, Math.ceil(PATH_HOLD - exit.hold))
+      const name = many ? `EXIT ${i + 1}` : "EXIT"
+      const word = exit.hold > 0.05 ? `HOLD ${name} ${left}s` : name
+      marks.push({
+        x,
+        y,
+        col: COL_EXIT,
+        word,
+        field: () => {
+          const r = Math.max(32, FLARE_R * zoom * scale)
+          const p = Math.max(0, Math.min(1, exit.hold / PATH_HOLD))
+          holdRing(ctx, x, y, r, p, COL_EXIT)
+          exitChevron(ctx, x, y, Math.atan2(-exit.y, exit.x), COL_EXIT, scale)
+          plate(ctx, x, y - r - 28, word, COL_EXIT)
+        },
+      })
+    })
   }
   if (w.stashOn) {
     const x = sx(w.stashX)
     const y = sy(w.stashY)
     const word = w.stashHold > 0.05 ? w.banner : "STASH"
-    const tip = edgeArrow(ctx, x, y, width, height, "#9a9a94")
-    if (tip) plate(ctx, tip.x, tip.y - 28, word, "#9a9a94")
-    else {
-      const r = Math.max(22, 3 * zoom * (width / bw))
-      const p = Math.max(0, Math.min(1, w.stashHold / 4))
-      ctx.strokeStyle = "#9a9a94"
-      ctx.lineWidth = 2
-      ctx.globalAlpha = 0.45
-      ctx.beginPath()
-      ctx.arc(x, y, r, 0, Math.PI * 2)
-      ctx.stroke()
-      ctx.globalAlpha = 1
-      ctx.beginPath()
-      ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * p)
-      ctx.stroke()
-      plate(ctx, x, y - r - 22, word, "#9a9a94")
+    marks.push({
+      x,
+      y,
+      col: COL_STASH,
+      word,
+      field: () => {
+        const r = Math.max(24, 3 * zoom * scale)
+        const p = Math.max(0, Math.min(1, w.stashHold / 4))
+        holdRing(ctx, x, y, r, p, COL_STASH)
+        stashMark(ctx, x, y, scale)
+        plate(ctx, x, y - r - 24, word, COL_STASH)
+      },
+    })
+  }
+  if (w.lzOn || w.flareOn) {
+    const x = sx(w.flareX)
+    const y = sy(w.flareY)
+    const word =
+      w.banner.startsWith("ARM") ||
+      w.banner.startsWith("CRAFT") ||
+      w.banner.startsWith("LOAD") ||
+      w.banner === "HOLD THE LZ"
+        ? w.banner
+        : "LZ"
+    marks.push({
+      x,
+      y,
+      col: COL_LZ,
+      word,
+      size: w.pathOn ? 1.35 : 1,
+      field: () => {
+        const r = Math.max(32, FLARE_R * zoom * scale)
+        const p = !w.flareOn ? w.flareArm / FLARE_ARM : w.craftOn ? 1 : Math.min(1, w.flareHold / CRAFT_WAIT)
+        holdRing(ctx, x, y, r, p, COL_LZ)
+        lzPad(ctx, x, y, scale)
+        if (w.flareOn) column(ctx, x, y, 110, w.t)
+        if (w.flareOn) paintCraft(ctx, x, y, w)
+        plate(ctx, x, y - r - 28, word, COL_LZ)
+      },
+    })
+  }
+  ctx.save()
+  ctx.imageSmoothingEnabled = false
+  const placed = placeEdgePins(marks, width, height)
+  for (const row of placed) {
+    if (row.tip) {
+      paintEdgeArrow(ctx, row.tip.x, row.tip.y, row.tip.ang, row.mark.col, row.mark.size ?? 1)
+      plate(ctx, row.tip.x, row.tip.y - 30, row.mark.word, row.mark.col)
+    } else {
+      row.mark.field?.()
     }
   }
   ctx.restore()
 }
 
-function markFlare(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, h: number, t: number) {
-  const tip = edgeArrow(ctx, x, y, width, height, "#e1c15a")
-  if (tip) plate(ctx, tip.x, tip.y - 28, "DROP")
-  else column(ctx, x, y, h, t)
+/** Space off-screen intent pins along the rim so none bury another. */
+function placeEdgePins(marks: SignalMark[], width: number, height: number, gap = 48) {
+  const m = 36
+  type Hit = { mark: SignalMark; x: number; y: number; ang: number; side: "t" | "b" | "l" | "r" }
+  const hits: Hit[] = []
+  const onScreen: { mark: SignalMark; tip: null }[] = []
+  for (const mark of marks) {
+    if (mark.x >= m && mark.x <= width - m && mark.y >= m && mark.y <= height - m) {
+      onScreen.push({ mark, tip: null })
+      continue
+    }
+    const cx = width / 2
+    const cy = height / 2
+    const dx = mark.x - cx
+    const dy = mark.y - cy
+    const s = Math.min((width / 2 - m) / Math.max(1e-4, Math.abs(dx)), (height / 2 - m) / Math.max(1e-4, Math.abs(dy)))
+    const x = cx + dx * s
+    const y = cy + dy * s
+    const dT = Math.abs(y - m)
+    const dB = Math.abs(y - (height - m))
+    const dL = Math.abs(x - m)
+    const dR = Math.abs(x - (width - m))
+    const nearest = Math.min(dT, dB, dL, dR)
+    const side = nearest === dT ? "t" : nearest === dB ? "b" : nearest === dL ? "l" : "r"
+    hits.push({ mark, x, y, ang: Math.atan2(dy, dx), side })
+  }
+  const bySide: Record<"t" | "b" | "l" | "r", Hit[]> = { t: [], b: [], l: [], r: [] }
+  for (const h of hits) bySide[h.side].push(h)
+  const spread = (list: Hit[], axis: "x" | "y", lo: number, hi: number) => {
+    list.sort((a, b) => a[axis] - b[axis])
+    for (let i = 1; i < list.length; i++) {
+      if (list[i][axis] - list[i - 1][axis] < gap) list[i][axis] = list[i - 1][axis] + gap
+    }
+    for (let i = list.length - 2; i >= 0; i--) {
+      if (list[i + 1][axis] - list[i][axis] < gap) list[i][axis] = list[i + 1][axis] - gap
+    }
+    for (const h of list) h[axis] = Math.max(lo, Math.min(hi, h[axis]))
+  }
+  spread(bySide.t, "x", m, width - m)
+  for (const h of bySide.t) h.y = m
+  spread(bySide.b, "x", m, width - m)
+  for (const h of bySide.b) h.y = height - m
+  spread(bySide.l, "y", m, height - m)
+  for (const h of bySide.l) h.x = m
+  spread(bySide.r, "y", m, height - m)
+  for (const h of bySide.r) h.x = width - m
+  return [
+    ...onScreen,
+    ...hits.map((h) => ({ mark: h.mark, tip: { x: h.x, y: h.y, ang: h.ang } as { x: number; y: number; ang: number } })),
+  ]
+}
+
+function holdRing(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, p: number, col: string) {
+  ctx.strokeStyle = col
+  ctx.lineWidth = 2
+  ctx.globalAlpha = 0.55
+  ctx.beginPath()
+  ctx.arc(x, y, r, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.globalAlpha = 1
+  ctx.lineWidth = 4
+  ctx.beginPath()
+  ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0, Math.min(1, p)))
+  ctx.stroke()
+}
+
+/** Outward chevron at an exit — the hold place you walk into. */
+function exitChevron(ctx: CanvasRenderingContext2D, x: number, y: number, ang: number, col: string, scale: number) {
+  const s = Math.max(10, 11 * scale * 0.35)
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.rotate(ang)
+  ctx.fillStyle = "#0c0b09"
+  ctx.beginPath()
+  ctx.moveTo(s + 2, 0)
+  ctx.lineTo(-s * 0.55, -s * 0.75)
+  ctx.lineTo(-s * 0.55, s * 0.75)
+  ctx.closePath()
+  ctx.fill()
+  ctx.fillStyle = col
+  ctx.beginPath()
+  ctx.moveTo(s, 0)
+  ctx.lineTo(-s * 0.45, -s * 0.65)
+  ctx.lineTo(-s * 0.45, s * 0.65)
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
+}
+
+function lzPad(ctx: CanvasRenderingContext2D, x: number, y: number, scale: number) {
+  const s = Math.max(6, 7 * scale * 0.35)
+  ctx.fillStyle = "#0c0b09"
+  ctx.fillRect(x - s - 1, y - 2, s * 2 + 2, 4)
+  ctx.fillRect(x - 2, y - s - 1, 4, s * 2 + 2)
+  ctx.fillStyle = COL_LZ
+  ctx.fillRect(x - s, y - 1, s * 2, 2)
+  ctx.fillRect(x - 1, y - s, 2, s * 2)
+  ctx.fillRect(x - 3, y - 3, 6, 6)
+}
+
+function stashMark(ctx: CanvasRenderingContext2D, x: number, y: number, scale: number) {
+  const s = Math.max(5, 5 * scale * 0.35)
+  ctx.fillStyle = "#0c0b09"
+  ctx.fillRect(x - s - 1, y - s - 1, s * 2 + 2, s * 2 + 2)
+  ctx.fillStyle = COL_STASH
+  ctx.fillRect(x - s, y - s, s * 2, s * 2)
+  ctx.fillStyle = "#0c0b09"
+  ctx.fillRect(x - s + 2, y - 1, s * 2 - 4, 2)
+}
+
+function dropLabel(w: World, f: Inbound) {
+  if (f.loot) return "LOOT"
+  const hero = w.heroes[f.cardId]
+  if (hero) return hero.name
+  return card(f.cardId).name
 }
 
 function column(ctx: CanvasRenderingContext2D, x: number, y: number, h: number, t: number) {
@@ -1205,6 +1567,36 @@ function plate(ctx: CanvasRenderingContext2D, x: number, y: number, text: string
   ctx.fillText(text, px + 4, py + 2)
 }
 
+function paintEdgeArrow(
+  ctx: CanvasRenderingContext2D,
+  px: number,
+  py: number,
+  ang: number,
+  col: string,
+  size = 1,
+) {
+  const k = Math.max(0.85, size)
+  ctx.save()
+  ctx.translate(px, py)
+  ctx.rotate(ang)
+  ctx.fillStyle = "#0c0b09"
+  ctx.beginPath()
+  ctx.moveTo(16 * k, 0)
+  ctx.lineTo(-10 * k, -12 * k)
+  ctx.lineTo(-10 * k, 12 * k)
+  ctx.closePath()
+  ctx.fill()
+  ctx.fillStyle = col
+  ctx.beginPath()
+  ctx.moveTo(11 * k, 0)
+  ctx.lineTo(-6 * k, -8 * k)
+  ctx.lineTo(-6 * k, 8 * k)
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
+}
+
+/** Legacy single-pin helper (Tracker / stray calls). Prefer placeEdgePins for sets. */
 function edgeArrow(
   ctx: CanvasRenderingContext2D,
   sx: number,
@@ -1212,6 +1604,7 @@ function edgeArrow(
   width: number,
   height: number,
   col: string,
+  size = 1,
 ): { x: number; y: number } | null {
   const m = 36
   if (sx >= m && sx <= width - m && sy >= m && sy <= height - m) return null
@@ -1222,24 +1615,7 @@ function edgeArrow(
   const s = Math.min((width / 2 - m) / Math.max(1e-4, Math.abs(dx)), (height / 2 - m) / Math.max(1e-4, Math.abs(dy)))
   const px = cx + dx * s
   const py = cy + dy * s
-  ctx.save()
-  ctx.translate(px, py)
-  ctx.rotate(Math.atan2(dy, dx))
-  ctx.fillStyle = "#000"
-  ctx.beginPath()
-  ctx.moveTo(16, 0)
-  ctx.lineTo(-10, -12)
-  ctx.lineTo(-10, 12)
-  ctx.closePath()
-  ctx.fill()
-  ctx.fillStyle = col
-  ctx.beginPath()
-  ctx.moveTo(11, 0)
-  ctx.lineTo(-6, -8)
-  ctx.lineTo(-6, 8)
-  ctx.closePath()
-  ctx.fill()
-  ctx.restore()
+  paintEdgeArrow(ctx, px, py, Math.atan2(dy, dx), col, size)
   return { x: px, y: py }
 }
 
@@ -1302,8 +1678,8 @@ function paintMark(
 }
 
 export function hpColor(frac: number) {
-  if (frac > 0.55) return "#c0c0c0"
-  if (frac > 0.28) return "#e1c15a"
+  if (frac > 0.55) return "#e1c15a"
+  if (frac > 0.28) return "#8a5040"
   return "#a32020"
 }
 

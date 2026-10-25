@@ -1,0 +1,16 @@
+RE-AUTHORED 2× / 4× (still investigate only — not in sprites.ts)
+
+Prior 181–203 used blocky row-doubles that read like NN. These redraws use
+1px silhouette steps, visor slit, cheek, coat fold/band, taper waist, sole,
+and gun parts (stock/receiver/barrel/optic/grip) that NN cannot invent.
+
+Bars: gold=shipped 1× · grey=hand 2× · orange=hand 4× · dim=NN upsample · teal=hand
+
+Key proof sheets:
+  204  NN2 | hand2 | NN4 | hand4  (same height) — clearest
+  205  NN4 vs hand4 hero
+  183 / 195  NN vs hand at each scale
+  192  ladder 1/2/4 same height
+  196  hero 1× vs 4×
+
+Still not shipped.

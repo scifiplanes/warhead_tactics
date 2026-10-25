@@ -11,7 +11,22 @@ import {
   type Side,
   type Stats,
 } from "../content/catalog"
-import { gunMuzzle } from "../content/muzzle"
+import { flashOf, gunMuzzle, type FlashDef, type FlashShape } from "../content/muzzle"
+import {
+  cacheLoot,
+  cacheSleepers,
+  ecoAll,
+  foldHostiles,
+  genMap,
+  hordeScale,
+  neighborAngle,
+  pressureOf,
+  type CampaignMap,
+  type CachedLoot,
+  type FieldNode,
+} from "../meta/worldmap"
+
+export type PathExit = { x: number; y: number; hold: number; to: number; open: boolean }
 
 export type Commands = {
   moveX: number
@@ -109,6 +124,21 @@ export type Gib = {
 
 export type Slot = { id: string; charges: number; cd: number; cdMax: number }
 export type Shot = { x: number; y: number; tx: number; ty: number; life: number; lift: number; from?: number }
+export type Flash = {
+  x: number
+  y: number
+  hdg: number
+  life: number
+  max: number
+  shape: FlashShape
+  core: string
+  rim?: string
+  along: number
+  across: number
+  /** Night illumination radius (world units). */
+  light: number
+  from?: number
+}
 export type Bolt = { x: number; y: number; vx: number; vy: number; dmg: number; life: number; side: Side }
 export type Lob = { x: number; y: number; tx: number; ty: number; t: number; T: number; dmg: number; aoe: number; side: Side; lift: number }
 export type Smoke = { x: number; y: number; r: number; t: number }
@@ -198,11 +228,18 @@ export type World = {
   banner: string
   flareAt: number
   pathOn: boolean
+  /** Exit marks; hold any one for PATH_HOLD to travel. */
+  paths: PathExit[]
+  /** Mirror of the active/nearest path for HUD and bots. */
   pathX: number
   pathY: number
   pathHold: number
   pathAt: number
   depth: number
+  map: CampaignMap
+  nodeId: number
+  /** Hostiles killed on the current node (scar). */
+  nodeKills: number
   ground: string
   bearing: number
   pressure: string
@@ -233,6 +270,7 @@ export type World = {
   kitPay: number
   hash: Map<string, Body[]>
   shots: Shot[]
+  flashes: Flash[]
   bolts: Bolt[]
   marks: Mark[]
   gibs: Gib[]
@@ -287,7 +325,15 @@ export type Sleeper = {
 export type Tag = { x: number; y: number; text: string; kind: string; life: number; slot: number }
 
 export type Diff = "easy" | "normal" | "hard"
-export type RunOpts = { diff?: Diff; hidden?: string[]; known?: string[]; heroes?: Hero[]; wear?: Record<string, number> }
+export type RunOpts = {
+  diff?: Diff
+  hidden?: string[]
+  known?: string[]
+  heroes?: Hero[]
+  wear?: Record<string, number>
+  map?: CampaignMap
+  nodeId?: number
+}
 
 export type Spawn = {
   kind: string
@@ -446,6 +492,10 @@ export const FLARE_ARM = 3
 export const LOAD_STEP = 0.8
 export const FLARE_R = 5
 export const PATH_HOLD = 8
+/** Path / opposite-LZ mark distance from field center. */
+export const PATH_R = 72
+/** Seconds between each exit reveal after the first. */
+export const EXIT_STAGGER = 24
 const DROP_WARN = 3
 const DROP_EVERY = 14
 const STASH_R = 3
@@ -466,7 +516,14 @@ const GAP_NUDGE = 0.22
 export function makeRun(seed: number, deck: string[], opts: RunOpts = {}): World {
   const w = blank(seed)
   w.diffHp = opts.diff === "easy" ? 0.75 : opts.diff === "hard" ? 1.35 : 1
-  rollField(w)
+  w.map = opts.map ?? genMap(seed || 1)
+  ecoAll(w.map, 1.5)
+  const startId = opts.nodeId ?? w.map.start
+  w.nodeId = w.map.nodes.some((n) => n.id === startId) ? startId : w.map.start
+  w.nodeKills = 0
+  // Field first so deck shuffle keeps the same rng stream as before the graph.
+  rollField(w, nodeOf(w))
+  nodeOf(w).visited = true
   const ordered = deck.slice(0, DECK_CAP)
   const seen: Record<string, number> = {}
   const wear = opts.wear ?? {}
@@ -489,7 +546,7 @@ export function makeRun(seed: number, deck: string[], opts: RunOpts = {}): World
   w.nextDrop = 8
   w.nextHorde = 2
   w.flareAt = 48
-  w.pathAt = 36
+  w.pathAt = 72
   w.stashAt = 22
   w.commander = spawnBody(w, { kind: STARTER, x: 0, y: 0, inSection: true }).id
   outfitLead(w)
@@ -683,7 +740,7 @@ function blank(seed: number): World {
     lzOn: false,
     flareOn: false,
     flareX: 0,
-    flareY: -30,
+    flareY: -PATH_R,
     flareHold: 0,
     flareArm: 0,
     craftOn: false,
@@ -692,11 +749,15 @@ function blank(seed: number): World {
     banner: "",
     flareAt: 48,
     pathOn: false,
+    paths: [{ x: 0, y: PATH_R, hold: 0, to: 0, open: false }],
     pathX: 0,
-    pathY: 30,
+    pathY: PATH_R,
     pathHold: 0,
-    pathAt: 36,
+    pathAt: 72,
     depth: 0,
+    map: genMap(seed || 1),
+    nodeId: 0,
+    nodeKills: 0,
     ground: "open",
     bearing: 0,
     pressure: "drift",
@@ -726,6 +787,7 @@ function blank(seed: number): World {
     kitPay: 0,
     hash: new Map(),
     shots: [],
+    flashes: [],
     bolts: [],
     marks: [],
     gibs: [],
@@ -1220,10 +1282,43 @@ function otherHull(w: World, v: Body, x: number, y: number): Body | null {
 }
 
 function clearMark(w: World, x: number, y: number) {
-  if (Math.hypot(x - w.pathX, y - w.pathY) < 8) return false
+  for (const p of w.paths) {
+    if (!p.open) continue
+    if (Math.hypot(x - p.x, y - p.y) < 8) return false
+  }
   if (Math.hypot(x - w.flareX, y - w.flareY) < 8) return false
   if (Math.hypot(x - w.stashX, y - w.stashY) < 6) return false
   return true
+}
+
+function syncPathMirror(w: World, active?: PathExit | null) {
+  const at = squadAt(w)
+  let pick = active ?? null
+  if (!pick && w.paths.length) {
+    let best = Infinity
+    for (const p of w.paths) {
+      if (!p.open) continue
+      const d = Math.hypot(at.x - p.x, at.y - p.y)
+      if (d < best) {
+        best = d
+        pick = p
+      }
+    }
+  }
+  const p = pick ?? w.paths.find((row) => row.open) ?? w.paths[0]
+  if (!p) {
+    w.pathX = 0
+    w.pathY = PATH_R
+    w.pathHold = 0
+    return
+  }
+  w.pathX = p.x
+  w.pathY = p.y
+  w.pathHold = p.hold
+}
+
+function nodeOf(w: World): FieldNode {
+  return w.map.nodes.find((n) => n.id === w.nodeId) ?? w.map.nodes[0]
 }
 
 const REVEAL = 1.6
@@ -1481,12 +1576,13 @@ function pickup(w: World) {
     if (d.kind === "loot") {
       if (!touch(w, d.x, d.y)) continue
       d.taken = true
+      burst(w, d.x, d.y, "flash")
       if (d.cardId === "relic") {
         const id = w.hidden.shift()
         if (id && !w.found.includes(id) && !w.unlocked.includes(id)) {
           w.found.push(id)
-          tag(w, d.x, d.y, "FIND", "find")
-          toast(w, `${card(id).name} found`, "unit")
+          tag(w, d.x, d.y, `FIND ${card(id).name}`, "find")
+          toast(w, `${card(id).name} found`, "pick")
         } else tag(w, d.x, d.y, "RELIC", "loot")
         continue
       }
@@ -1494,7 +1590,7 @@ function pickup(w: World) {
       w.credits += LOOT_CR[d.cardId] ?? 10
       const label = d.cardId === "salvage" ? "SALVAGE" : d.cardId === "intel" ? "INTEL" : "SAMPLE"
       tag(w, d.x, d.y, label, "loot")
-      toast(w, `${label} +${LOOT_CR[d.cardId] ?? 10} CR`, "gear")
+      toast(w, `${label} +${LOOT_CR[d.cardId] ?? 10} CR`, "pick")
       continue
     }
     if (d.kind === "gear") {
@@ -1502,7 +1598,8 @@ function pickup(w: World) {
       if (!equip(w, d.cardId, d.cost)) continue
       d.taken = true
       w.dropsTaken++
-      noteFind(w, d)
+      burst(w, d.x, d.y, "flash")
+      if (!noteFind(w, d)) tag(w, d.x, d.y, card(d.cardId).name, "loot")
       continue
     }
     const body = w.bodies.find((b) => b.id === d.bodyId)
@@ -1518,11 +1615,13 @@ function pickup(w: World) {
     body.inSection = true
     d.taken = true
     w.dropsTaken++
-    if (body.heroId) toast(w, `${body.name} joined`, "unit")
-    else if (body.name) toast(w, `${body.name} joined`, "unit")
-    else {
-      noteFind(w, d)
-      toast(w, `${card(d.cardId).name} joined`, d.kind === "vehicle" ? "veh" : "unit")
+    burst(w, body.x, body.y, "flash")
+    if (body.heroId || body.name) {
+      toast(w, `${body.name} joined`, "pick")
+      tag(w, body.x, body.y, body.name, "find")
+    } else {
+      if (!noteFind(w, d)) tag(w, body.x, body.y, card(d.cardId).name, "loot")
+      toast(w, `${card(d.cardId).name} joined`, "pick")
     }
     if (body.vehicle) {
       const aboard = w.bodies.some((u) => u.alive && u.boarded !== null)
@@ -1766,7 +1865,7 @@ function equip(w: World, id: string, cost = 0): boolean {
     const target = bare ?? w.bodies.find((b) => soldier(b))
     if (!target) return false
     fitGun(w, target, id, cost)
-    toast(w, `${c.name} fitted`, "gear")
+    toast(w, `${c.name} fitted`, "pick")
     return true
   }
   if (c.slot) {
@@ -1777,7 +1876,7 @@ function equip(w: World, id: string, cost = 0): boolean {
     target.gears.push(id)
     if (cost > 0) target.gearPay[id] = cost
     reapplyGun(target)
-    toast(w, `${c.name} fitted`, "gear")
+    toast(w, `${c.name} fitted`, "pick")
     return true
   }
   const target = pickFit(w, c)
@@ -1807,8 +1906,8 @@ function equip(w: World, id: string, cost = 0): boolean {
         cdMax: c.cd ?? 0,
       })
     }
-    toast(w, `${c.name} ready`, "gear")
-  } else if (target) toast(w, `${c.name} fitted`, "gear")
+    toast(w, `${c.name} ready`, "pick")
+  } else if (target) toast(w, `${c.name} fitted`, "pick")
   const ok = Boolean((c.fits !== "section" && target) || c.ability)
   if (ok && c.fits === "section" && cost > 0) w.kitPay += cost
   return ok
@@ -1817,7 +1916,13 @@ function equip(w: World, id: string, cost = 0): boolean {
 function horde(w: World, dt: number) {
   w.nextHorde -= dt
   if (w.nextHorde > 0) return
-  w.nextHorde = HORDE_EVERY / (1 + w.depth * 0.28)
+  const n = nodeOf(w)
+  const mass = n.feral + n.rust
+  if (mass < 1.2 && n.scar >= 5) {
+    w.nextHorde = HORDE_EVERY * 1.8
+    return
+  }
+  w.nextHorde = (HORDE_EVERY * hordeScale(n)) / (1 + w.depth * 0.28)
   let alive = 0
   for (const b of w.bodies) if (b.alive && b.side !== "player") alive++
   if (alive >= HOSTILE_CAP) return
@@ -1892,10 +1997,18 @@ function pick(rng: () => number, bag: [string, number][]) {
 
 function spawnAt(w: World) {
   if (w.rng() < 0.6) {
-    const pathD = Math.hypot(w.ax - w.pathX, w.ay - w.pathY)
+    let best = w.paths[0] ?? { x: w.pathX, y: w.pathY }
+    let bestD = Math.hypot(w.ax - best.x, w.ay - best.y)
+    for (const p of w.paths) {
+      const d = Math.hypot(w.ax - p.x, w.ay - p.y)
+      if (d > bestD) {
+        bestD = d
+        best = p
+      }
+    }
     const lzD = Math.hypot(w.ax - w.flareX, w.ay - w.flareY)
-    const fx = pathD >= lzD ? w.pathX : w.flareX
-    const fy = pathD >= lzD ? w.pathY : w.flareY
+    const fx = bestD >= lzD ? best.x : w.flareX
+    const fy = bestD >= lzD ? best.y : w.flareY
     let dx = fx - w.ax
     let dy = fy - w.ay
     const d = Math.hypot(dx, dy) || 1
@@ -2023,7 +2136,7 @@ function combatHands(w: World, b: Body, dt: number, pri: string | undefined, sec
   }
   if (!pick) return
   if (b.side !== "player" && pick.w.range > 2 && smoked(w, tgt)) return
-  fireWeapon(w, b, tgt, pick.w, pick.side, lit)
+  fireWeapon(w, b, tgt, pick.w, pick.side, lit, pick.id)
 }
 
 /** Point facing and heading at the fire target (gun art and beams follow hdg). */
@@ -2032,7 +2145,7 @@ function aimAt(b: Body, tgt: { x: number; y: number }) {
   if (Math.abs(tgt.x - b.x) > 0.02) b.face = tgt.x < b.x ? -1 : 1
 }
 
-function fireWeapon(w: World, b: Body, tgt: Body, stats: Wield, side: boolean, lit: boolean) {
+function fireWeapon(w: World, b: Body, tgt: Body, stats: Wield, side: boolean, lit: boolean, gun?: string) {
   if (side) b.sideCool = stats.cooldown
   else b.cool = stats.cooldown
   b.fired++
@@ -2063,7 +2176,9 @@ function fireWeapon(w: World, b: Body, tgt: Body, stats: Wield, side: boolean, l
   b.pierce = stats.pierce
   b.lob = stats.lob
   b.aoe = stats.aoe
-  const [mx, my] = muzzleOf(b)
+  const wield = gun ?? gunId(b) ?? (b.vehicle || b.air ? "mount" : b.kind)
+  const [mx, my] = muzzleOf(b, wield)
+  pushFlash(w, mx, my, b.hdg, wield, b.id)
   if (b.side !== "player" && stats.range > 2) {
     const dx = tgt.x - mx
     const dy = tgt.y - my
@@ -2236,31 +2351,77 @@ function flare(w: World, _cmd: Commands, dt: number) {
 }
 
 function path(w: World, dt: number) {
-  if (!w.pathOn && !w.craftOn && w.t >= w.pathAt) {
-    w.pathOn = true
-    w.pathHold = 0
-    toast(w, "Path marked", "unit")
+  if (!w.craftOn && w.t >= w.pathAt && w.paths.length) {
+    const want = Math.min(w.paths.length, 1 + Math.floor((w.t - w.pathAt) / EXIT_STAGGER))
+    let open = 0
+    for (const p of w.paths) if (p.open) open++
+    while (open < want) {
+      const next = w.paths.find((p) => !p.open)
+      if (!next) break
+      next.open = true
+      next.hold = 0
+      open++
+      const first = !w.pathOn
+      w.pathOn = true
+      if (first) toast(w, "Exit marked", "unit")
+      else toast(w, "Another exit", "unit")
+      syncPathMirror(w)
+    }
   }
-  if (!w.pathOn || w.craftOn) return
+  // Flare/craft or standing in the LZ is extract — never path-travel from there.
+  if (!w.pathOn || w.craftOn || w.flareOn) return
   const at = squadAt(w)
-  const inside = Math.hypot(at.x - w.pathX, at.y - w.pathY) <= FLARE_R
-  w.pathHold = inside ? w.pathHold + dt : 0
-  if (w.pathHold >= PATH_HOLD) deeper(w)
+  if (w.lzOn && Math.hypot(at.x - w.flareX, at.y - w.flareY) <= FLARE_R) {
+    for (const p of w.paths) p.hold = 0
+    syncPathMirror(w)
+    return
+  }
+  let active: PathExit | null = null
+  for (const p of w.paths) {
+    if (!p.open) {
+      p.hold = 0
+      continue
+    }
+    const inside = Math.hypot(at.x - p.x, at.y - p.y) <= FLARE_R
+    p.hold = inside ? p.hold + dt : 0
+    if (inside) active = p
+  }
+  syncPathMirror(w, active)
+  for (const p of w.paths) {
+    if (!p.open) continue
+    if (p.hold >= PATH_HOLD) {
+      travel(w, p.to)
+      return
+    }
+  }
 }
 
-function deeper(w: World) {
-  w.depth++
-  w.diffHp *= 1.15
-  w.pathOn = false
-  w.pathHold = 0
-  w.lzOn = false
-  w.flareOn = false
-  w.craftOn = false
-  w.flareArm = 0
-  w.flareHold = 0
-  w.loadT = 0
-  w.flareAt = w.t + 48
-  w.pathAt = w.t + 36
+function leaveNode(w: World) {
+  const n = nodeOf(w)
+  let feral = 0
+  let rust = 0
+  for (const b of w.bodies) {
+    if (!b.alive || b.side === "player") continue
+    if (b.side === "feral") feral++
+    else if (b.side === "rust") rust++
+  }
+  foldHostiles(n, feral, rust, w.nodeKills)
+  const loot: CachedLoot[] = []
+  for (const d of w.drops) {
+    if (d.taken || d.kind !== "loot") continue
+    if (d.cardId !== "salvage" && d.cardId !== "intel" && d.cardId !== "sample") continue
+    loot.push({ kind: d.cardId, x: d.x, y: d.y })
+    if (loot.length >= 2) break
+  }
+  cacheLoot(n, loot)
+  cacheSleepers(
+    n,
+    w.sleepers.map((s) => ({ hull: s.hull, wake: s.wake, x: s.x, y: s.y, awake: s.awake })),
+  )
+  n.visited = true
+}
+
+function plantSection(w: World) {
   w.bodies = w.bodies.filter((b) => b.alive && b.inSection && b.side === "player")
   const boss = w.bodies.find((b) => b.id === w.commander)
   const hull = boss && boss.boarded !== null ? w.bodies.find((b) => b.id === boss.boarded) : null
@@ -2286,6 +2447,9 @@ function deeper(w: World) {
   }
   w.ax = 0
   w.ay = 0
+}
+
+function scrubField(w: World) {
   w.props = []
   w.drops = []
   w.inbound = []
@@ -2294,18 +2458,58 @@ function deeper(w: World) {
   w.marks = []
   w.bolts = []
   w.shots = []
+  w.flashes = []
   w.lobs = []
   w.mines = []
   w.strikes = []
   w.passes = []
   w.smokes = []
   w.tags = []
+  w.marshes = []
+  w.sleepers = []
   w.stashOn = false
   w.stashHold = 0
+}
+
+function travel(w: World, to: number) {
+  leaveNode(w)
+  ecoAll(w.map, 2.2, w.nodeId)
+  w.depth++
+  w.diffHp *= 1.15
+  w.pathOn = false
+  w.pathHold = 0
+  for (const p of w.paths) {
+    p.hold = 0
+    p.open = false
+  }
+  w.lzOn = false
+  w.flareOn = false
+  w.craftOn = false
+  w.flareArm = 0
+  w.flareHold = 0
+  w.loadT = 0
+  w.flareAt = w.t + 48
+  w.pathAt = w.t + 72
   w.stashAt = w.t + 22
-  w.marshes = []
-  rollField(w)
-  toast(w, "DEEPER", "unit")
+  plantSection(w)
+  scrubField(w)
+  const dest = w.map.nodes.some((n) => n.id === to) ? to : w.map.start
+  enterNode(w, dest, false)
+  toast(w, "TRAIL", "unit")
+}
+
+function enterNode(w: World, id: number, _first: boolean) {
+  w.nodeId = id
+  w.nodeKills = 0
+  const n = nodeOf(w)
+  rollField(w, n)
+  n.visited = true
+}
+
+/** Commit the hot field back into the campaign map (extract or wipe). */
+export function commitMap(w: World) {
+  leaveNode(w)
+  ecoAll(w.map, 1)
 }
 
 function ability(w: World, cmd: Commands) {
@@ -2797,6 +3001,12 @@ export function beams(w: World): Body[] {
   )
 }
 
+/** Living hostiles marked while a living player wears a Tracker. Ignores night and smoke. */
+export function trackerTargets(w: World): Body[] {
+  if (!w.bodies.some((b) => b.alive && b.side === "player" && b.gears.includes("tracker"))) return []
+  return w.bodies.filter((b) => b.alive && (b.side === "feral" || b.side === "rust"))
+}
+
 function inBeam(w: World, x: number, y: number) {
   for (const b of beams(w)) {
     const dx = x - b.x
@@ -2804,6 +3014,16 @@ function inBeam(w: World, x: number, y: number) {
     const d = Math.hypot(dx, dy)
     if (d < 0.35 || d > BEAM_R) continue
     if (Math.abs(angDiff(Math.atan2(dy, dx), b.hdg)) <= BEAM_ARC) return true
+  }
+  return inFlashLight(w, x, y)
+}
+
+/** Muzzle flash is a brief omnidirectional light at night. */
+function inFlashLight(w: World, x: number, y: number) {
+  for (const f of w.flashes) {
+    if (f.light <= 0) continue
+    const r = f.light * (0.5 + 0.5 * (f.life / f.max))
+    if (Math.hypot(x - f.x, y - f.y) <= r) return true
   }
   return false
 }
@@ -2956,6 +3176,9 @@ function ages(w: World, dt: number) {
   for (const s of w.shots) s.life -= dt
   w.shots = w.shots.filter((s) => s.life > 0)
   if (w.shots.length > 48) w.shots.splice(0, w.shots.length - 48)
+  for (const f of w.flashes) f.life -= dt
+  w.flashes = w.flashes.filter((f) => f.life > 0)
+  if (w.flashes.length > 64) w.flashes.splice(0, w.flashes.length - 64)
   for (const t of w.toasts) t.life -= dt
   w.toasts = w.toasts.filter((t) => t.life > 0)
   for (const t of w.tags) t.life -= dt
@@ -2966,10 +3189,29 @@ function pushShot(w: World, x: number, y: number, tx: number, ty: number, lift =
   w.shots.push({ x, y, tx, ty, life: 0.08, lift, from })
 }
 
+function pushFlash(w: World, x: number, y: number, hdg: number, gun: string | null | undefined, from?: number) {
+  const def: FlashDef | null = flashOf(gun)
+  if (!def) return
+  w.flashes.push({
+    x,
+    y,
+    hdg,
+    life: def.life,
+    max: def.life,
+    shape: def.shape,
+    core: def.core,
+    rim: def.rim,
+    along: def.along,
+    across: def.across,
+    light: def.light,
+    from,
+  })
+}
+
 /** World point at the held gun tip — along hdg from the body (hit/bolt spawn). View tracers use stamp tip. */
-function muzzleOf(b: Body): [number, number] {
+function muzzleOf(b: Body, gun?: string | null): [number, number] {
   const r =
-    b.vehicle || b.air ? Math.max(0.5, b.radius * 0.85) : gunMuzzle(gunId(b))
+    b.vehicle || b.air ? Math.max(0.5, b.radius * 0.85) : gunMuzzle(gun ?? gunId(b))
   return [b.x + Math.cos(b.hdg) * r, b.y + Math.sin(b.hdg) * r]
 }
 
@@ -3000,10 +3242,11 @@ function toast(w: World, msg: string, kind: string) {
 }
 
 function noteFind(w: World, d: Drop) {
-  if (w.unlocked.includes(d.cardId) || w.found.includes(d.cardId)) return
+  if (w.unlocked.includes(d.cardId) || w.found.includes(d.cardId)) return false
   w.found.push(d.cardId)
-  tag(w, d.x, d.y, "FIND", "find")
-  toast(w, `${card(d.cardId).name} found`, "unit")
+  tag(w, d.x, d.y, `FIND ${card(d.cardId).name}`, "find")
+  toast(w, `${card(d.cardId).name} found`, "pick")
+  return true
 }
 
 const LINES = ["MUD HOLDS", "QUIET WIRE", "NO BIRDS"]
@@ -3043,6 +3286,7 @@ function tag(w: World, x: number, y: number, text: string, kind: string) {
 
 function tagLife(kind: string) {
   if (kind === "line") return 3.8
+  if (kind === "find" || kind === "loot" || kind === "bounty") return 3.4
   if (kind === "down" || kind === "chip") return 1.4
   return 2.6
 }
@@ -3186,6 +3430,7 @@ function kill(w: World, b: Body) {
     if (b.inSection) toast(w, "Section casualty", "danger")
   } else if (b.side !== "player") {
     w.kills++
+    w.nodeKills++
     w.credits += b.side === "rust" ? 8 : 4
     tag(w, b.x, b.y, "DOWN", "down")
   }
@@ -3216,14 +3461,26 @@ function labels(w: World) {
   w.spreadLabel = aboard ? "EXIT" : w.gap < GAP_MAX ? "LOOSE" : "WIDE"
   const at = squadAt(w)
   const inLz = w.lzOn && Math.hypot(at.x - w.flareX, at.y - w.flareY) <= FLARE_R
-  const inPath = w.pathOn && Math.hypot(at.x - w.pathX, at.y - w.pathY) <= FLARE_R
+  let pathHold = 0
+  let inPath = false
+  if (w.pathOn) {
+    for (const p of w.paths) {
+      if (!p.open) continue
+      if (Math.hypot(at.x - p.x, at.y - p.y) <= FLARE_R) {
+        inPath = true
+        pathHold = p.hold
+        break
+      }
+    }
+  }
   const left = w.bodies.filter((b) => b.alive && b.inSection && b.side === "player").length
   if (w.craftOn) w.banner = `LOAD ${left}`
   else if (w.flareOn) w.banner = inLz ? `CRAFT ${Math.max(0, Math.ceil(craftWait(w) - w.flareHold))}s` : "HOLD THE LZ"
-  else if (inPath) w.banner = `PATH ${Math.max(0, Math.ceil(PATH_HOLD - w.pathHold))}s`
-  else if (w.lzOn && inLz) w.banner = `FLARE ${Math.max(0, Math.ceil(FLARE_ARM - w.flareArm))}s`
-  else if (w.lzOn && w.pathOn) w.banner = "LZ OR PATH"
-  else if (w.pathOn) w.banner = "REACH PATH"
+  else if (inPath) w.banner = `HOLD EXIT ${Math.max(0, Math.ceil(PATH_HOLD - pathHold))}s`
+  else if (w.lzOn && inLz) w.banner = `ARM FLARE ${Math.max(0, Math.ceil(FLARE_ARM - w.flareArm))}s`
+  else if (w.lzOn && w.pathOn) w.banner = "HOLD LZ · OR EXIT"
+  else if (w.pathOn)
+    w.banner = w.paths.filter((p) => p.open).length > 1 ? "REACH AN EXIT" : "REACH EXIT"
   else if (w.lzOn) w.banner = "REACH LZ"
   else if (w.stashOn && Math.hypot(at.x - w.stashX, at.y - w.stashY) <= STASH_R)
     w.banner = `STASH ${Math.max(0, Math.ceil(STASH_HOLD - w.stashHold))}s`
@@ -3289,11 +3546,12 @@ function scatter(w: World) {
   }
 }
 
-function rollField(w: World) {
-  w.ground = GROUNDS[(w.rng() * GROUNDS.length) | 0]
-  w.bearing = (w.rng() * 8) | 0
+function rollField(w: World, node?: FieldNode) {
+  const n = node ?? nodeOf(w)
   const band = BANDS[Math.min(BANDS.length - 1, w.depth)]
-  w.pressure = band[(w.rng() * band.length) | 0]
+  w.ground = n.ground
+  w.bearing = n.bearing
+  w.pressure = pressureOf(n, band)
   w.apex = APEX[(w.rng() * APEX.length) | 0]
   w.escort = ESCORT[(w.rng() * ESCORT.length) | 0]
   const pair = skyPair(w.ground, w.rng)
@@ -3302,13 +3560,19 @@ function rollField(w: World) {
   w.weather = w.skyMain
   w.weatherAt = 52
   w.dayOff = DAY_OFF[(w.rng() * DAY_OFF.length) | 0]
-  const ang = (w.bearing * Math.PI) / 4
-  const c = Math.cos(ang)
-  const s = Math.sin(ang)
-  w.pathX = c * 30
-  w.pathY = s * 30
-  w.flareX = -w.pathX
-  w.flareY = -w.pathY
+  const exits = n.exits.length ? n.exits : [n.id]
+  w.paths = exits.map((to) => {
+    const dest = w.map.nodes.find((row) => row.id === to)
+    const ang = dest ? neighborAngle(n, dest) : (w.bearing * Math.PI) / 4
+    return { x: Math.cos(ang) * PATH_R, y: Math.sin(ang) * PATH_R, hold: 0, to, open: false }
+  })
+  const lz = lzAwayFromExits(w.paths)
+  w.flareX = lz[0]
+  w.flareY = lz[1]
+  syncPathMirror(w)
+  const base = Math.atan2(w.paths[0].y, w.paths[0].x)
+  const c = Math.cos(base)
+  const s = Math.sin(base)
   const side = w.rng() < 0.5 ? 1 : -1
   const off = 16 + w.rng() * 12
   const along = (w.rng() * 2 - 1) * 10
@@ -3319,7 +3583,39 @@ function rollField(w: World) {
   w.sleepers = []
   layMarsh(w)
   scatter(w)
-  laySleepers(w)
+  if (n.sleepers.length) {
+    for (const s of n.sleepers) {
+      if (s.awake) continue
+      w.sleepers.push({
+        id: w.nextId++,
+        hull: s.hull,
+        wake: s.wake,
+        x: s.x,
+        y: s.y,
+        awake: false,
+        hold: 0,
+      })
+    }
+  } else {
+    laySleepers(w)
+    cacheSleepers(
+      n,
+      w.sleepers.map((s) => ({ hull: s.hull, wake: s.wake, x: s.x, y: s.y, awake: s.awake })),
+    )
+  }
+  for (const loot of n.loot) {
+    w.drops.push({
+      id: w.nextId++,
+      cardId: loot.kind,
+      x: loot.x,
+      y: loot.y,
+      bodyId: -1,
+      kind: "loot",
+      taken: false,
+      cost: 0,
+    })
+  }
+  n.loot = []
 }
 
 function laySleepers(w: World) {
@@ -3357,6 +3653,24 @@ function skyPair(ground: string, rng: () => number): [Weather, Weather] {
 
 function sun(w: World) {
   return daylight(w.t + w.dayOff)
+}
+
+/** LZ mark in the widest angular gap from all path exits (not merely opposite exit 0). */
+function lzAwayFromExits(paths: PathExit[]): [number, number] {
+  if (!paths.length) return [0, -PATH_R]
+  const angs = paths.map((p) => Math.atan2(p.y, p.x))
+  let best = angs[0] + Math.PI
+  let bestClear = -1
+  for (let i = 0; i < 48; i++) {
+    const a = (i / 48) * Math.PI * 2
+    let clear = Infinity
+    for (const e of angs) clear = Math.min(clear, Math.abs(angDiff(a, e)))
+    if (clear > bestClear) {
+      bestClear = clear
+      best = a
+    }
+  }
+  return [Math.cos(best) * PATH_R, Math.sin(best) * PATH_R]
 }
 
 function onSegment(x: number, y: number, w: World, reach: number) {

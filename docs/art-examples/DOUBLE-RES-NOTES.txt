@@ -1,0 +1,24 @@
+Doubling 161 assets (investigate only — not shipped)
+
+Shipped native (soldier idle+rifle): ~16×13 body, gun stamp in pocket.
+Proposed 2× authored: ~32×26 — same foreshortened coat mass, stand-C legs,
+readable stock/optic/mag, sleeve shade, boot soles. Not a NN upsample.
+
+Sheets (gold = current 1×, grey = authored 2×; teal = authored vs dim NN):
+  181  same display height — detail at equal screen footprint
+  182  native ×8 — true pixel density
+  183  NN×2 of current vs authored 2× — proves re-authorship, not scale
+  184  poses idle/walk/dep — top 1×, bottom 2×
+  185  2× gun kits ×6
+  186  gun families same-height — top 1×, bottom 2×
+  187  field 1:1 — 2× reads ~2× taller in world (buffer still ÷3–4)
+  188  field same world height — 2× drawn half the screen scale; detail only
+  189  soldier / shambler / doghead same-height
+  190  ruin foundation — same-h + native×5
+  191  hero large same-height
+
+If applied: rewrite ASCII/rect art in sprites.ts; HOLD stamps ×2; prop/vehicle
+rects ×2; anim layer offsets scale; camera/zoom or buffer scale must keep
+world footprint or squad grows huge (see 187).
+
+RE-AUTHORED: see 204/205 and REAUTH-NOTES.txt (hand pixels, not block NN).

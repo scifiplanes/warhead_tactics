@@ -2,6 +2,28 @@
 
 Newest first. Older → `docs/changelog-archive.md`.
 
+- **2026-10-25 Design:** HEX scout/line/siege read as bipedal mechs (legs + torso + arm gun), not tracked hulls. `src/view/sprites.ts`
+- **2026-10-25 Fix:** match CR shows run earnings only; LZ extract no longer path-travels (LZ clears exits; hold LZ never travels). `src/main.ts` `src/sim/world.ts`
+- **2026-10-25 Feat:** muzzle flashes are night light sources — punch the veil, warm bloom, and briefly light combat sight. `src/content/muzzle.ts` `src/sim/world.ts` `src/view/draw.ts`
+- **2026-10-25 Fix:** deck difficulty row reads AUTOLOAD (was LOAD); AUTOPLAY stays the bot deploy. `index.html`
+- **2026-10-25 Fix:** exits open one by one (24s stagger after the first at t≥72s), not all at once. `src/sim/world.ts`
+- **2026-10-25 Fix:** rim intent pins (exits, LZ, stash, drops) fan apart so markers stay visible together. `src/view/draw.ts`
+- **2026-10-25 Fix:** exits mark later (t≥72s, after LZ); LZ draws above exits and keeps a larger gold rim pin. `src/sim/world.ts` `src/view/draw.ts`
+- **2026-10-25 Fix:** travel intent UI — steel EXIT chevrons (numbered), gold LZ pad, clearer hold plates/banner. `src/view/draw.ts` `src/sim/world.ts`
+- **2026-10-25 Fix:** muzzle flashes draw after grade at CSS scale (longer, brighter) so they read on the field. `src/view/draw.ts` `src/content/muzzle.ts`
+- **2026-10-25 Fix:** path and opposite LZ marks sit farther from field center (radius 72). `src/sim/world.ts`
+- **2026-10-25 Feat:** per-weapon muzzle flashes at the gun tip (shape marks rifle/SMG/shotgun/sniper/rail/MG/lob; blades and bows silent). `src/content/muzzle.ts` `src/sim/world.ts` `src/view/draw.ts`
+- **2026-10-25 Fix:** WORLD start node reads LZ (not HOME); map mark is LZ. `src/main.ts`
+- **2026-10-25 Feat:** WORLD is a pointy-top hex disk radius 7 (169 cells) with painted ground cell art; paths follow hex bearings. `src/meta/worldmap.ts` `src/view/sprites.ts` `src/main.ts`
+- **2026-10-25 Feat:** main menu WORLD tab reads the campaign field graph; start LZ marked with gold ring. `index.html` `src/main.ts`
+- **2026-10-25 Feat:** campaign field graph with multi-path travel, residue eco (feral/rust/bio/oxide/scar), and light loot/sleeper cache; deck airdrops stay run-scoped. `src/meta/worldmap.ts` `src/meta/profile.ts` `src/sim/world.ts` `src/view/draw.ts`
+- **2026-10-25 Fix:** remove hover/billow/trail soft chains that drew detached tips beside NPC stamps; clamp remaining soft draw to 6px of body. `src/view/anim.ts` `src/view/draw.ts`
+- **2026-10-25 Fix:** walk gait from stamp swap only — no ±1px leg-layer slide (read as slapstick on 13px figures); subtler walk stride. `src/view/anim.ts` `src/view/sprites.ts`
+- **2026-10-25 Fix:** stop NPC part offsets — flesh draws solid (no head/coat/leg split); drop soft trail/gait on stamped-leg bipeds/walkers; soldier hip rows no longer mix coat+leg keys. `src/view/sprites.ts` `src/view/anim.ts`
+- **2026-10-25 Fix:** restore original buffer footprints vs HEAD (soldier 16×13, jeep 18×11, tank 24×16, …) so field sizes/distances match; densify only inside those grids; zoom 4.5/6. `src/view/sprites.ts` `docs/design/art.md`
+- **2026-10-24 Feat:** pickup snaps harder — gold flash, named bracket, gold toast; kit strip pulses on change. `src/sim/world.ts` `src/view/draw.ts` `src/main.ts` `index.html`
+- **2026-10-24 Feat:** gear crates show their mark and a name plate (inbound too); the HUD kit strip and roster show fitted loadout. `src/view/draw.ts` `src/view/sprites.ts` `src/main.ts` `index.html`
+- **2026-10-24 Feat:** Tracker body kit paints blank brackets (and edge pins) on every living hostile while the wearer lives, through night and smoke. `src/content/catalog.ts` `src/sim/world.ts` `src/view/draw.ts` `src/view/sprites.ts`
 - **2026-10-23 Fix:** tracers and night beams leave the rotated gun tip (deploy / aim-up), not a flat body offset. `src/view/sprites.ts` `src/view/draw.ts` `src/sim/world.ts`
 - **2026-10-23 Feat:** soft modules on every foot hostile, hover sway, drawn brace tip, hit/stun impulse, soft+biped together. `src/view/anim.ts` `docs/design/anim.md`
 - **2026-10-23 Feat:** stretch plant loop for biped feet and soft tips, hips→chest→head lag, idle breath; hostiles and infantry. `src/view/anim.ts` `docs/design/anim.md`
@@ -17,24 +39,3 @@ Newest first. Older → `docs/changelog-archive.md`.
 - **2026-10-22 Design:** ruins and props use 161 high-angle mass — foreshortened trees/wire/wrecks/posts/teeth/crate, contact blobs, edge shade. `src/view/sprites.ts`
 - **2026-10-22 Design:** lock 161 high-angle stack for infantry and NPCs — foreshortened coat mass, ferals dirtier, walkers/drones same language; gun wedge on friendlies. `src/view/sprites.ts`
 - **2026-10-22 Design:** richer mud (wet patches, ruts, ash), 1px edge shade on soldier and hull bodies, ground contact shadows for infantry/vehicles/props, heavier crater/burn/splat marks, distinct hull families (truck, MBT, MLRS, HEX, UGV, MRAP), walker single dark optic, dirtier corpse palette. `src/view/sprites.ts` `src/view/draw.ts`
-- **2026-10-22 Design:** soldier sprites keep the old proportions with a muted face; the held gun is stamped from the loadout so rifle, SMG, shotgun, sniper, rail, MG, handgun, lob, bow, and blade read apart, and optic, mag, brace, grip, and muzzle mark the gun. `src/view/sprites.ts` `src/view/draw.ts`
-- **2026-10-21 Design:** FPV hits harder and wider so the inbound reads as a real strike. `src/sim/world.ts`
-- **2026-10-21 Design:** FPV is an over-the-horizon inbound like CAS, priced above a blade, and rides the JTAC and laser stack. `src/content/catalog.ts` `src/sim/world.ts`
-- **2026-10-21 Fix:** Purge and Haul finish marks read 8/8 and 3/3; no progress chatter. `src/sim/world.ts`
-- **2026-10-21 Fix:** the field HUD keeps only the clock; lost, drop, and bounty pills are gone. `src/main.ts` `index.html`
-- **2026-10-21 Feat:** weapons have primary and secondary hands; combat picks by range and fire rules; handguns, SMG, shotguns, and rail join the roster. `src/content/catalog.ts` `src/sim/world.ts`
-- **2026-10-21 Fix:** a blade uses its reach on flesh and no longer aims the lamp at gun-range ghosts. `src/sim/world.ts`
-- **2026-10-21 Fix:** night beam glow no longer sits on the Lead's rifle; soldier gun pixels read on the mud. `src/view/draw.ts` `src/view/sprites.ts`
-- **2026-10-21 Design:** research stock is economy-gated: no per-card max, copies stop at the deck cap, free-deploy cards still pay a rifle-floor research step. `src/content/catalog.ts` `src/meta/profile.ts`
-- **2026-10-21 Feat:** research depth sets deck copies; each next research of a find costs another step and reads MORE; extract lists new research. `src/meta/profile.ts` `src/main.ts`
-- **2026-10-21 Feat:** pending research is a count on the deck; the sheet groups by kind and puts affordable finds first. `src/main.ts` `index.html`
-- **2026-10-21 Fix:** melee bites a hull's skin, and a 0 hp hull dies instead of pinning the pack. `src/sim/world.ts`
-- **2026-10-21 Fix:** a ruin stutter no longer stacks scrapes into a quick kill. `src/sim/world.ts`
-- **2026-10-21 Feat:** guns take optic, grip, mag, brace, and muzzle cards; a new gun dumps those parts onto the mud as themselves, not crates. `src/content/catalog.ts` `src/sim/world.ts` `src/view/draw.ts`
-- **2026-10-21 Feat:** gunship, rocket, and bomber are toolbar call-ins: crate pickup, press spawns a circling sortie bird, one at a time, cooldown from the press. Gunboat stays leashed. `src/content/catalog.ts` `src/sim/world.ts`
-- **2026-10-21 Fix:** a bite scrapes a hull, and the tank, plow, and HEX walkers hold more steel. `src/sim/world.ts` `src/content/catalog.ts`
-- **2026-10-21 Feat:** airframes circle the Lead aloft with a ground shadow, pull toward a fight, and keep their guns; rocket and bomber lob from the air. `src/sim/world.ts` `src/view/draw.ts`
-- **2026-10-21 Fix:** a hull scrapes cover for light wear instead of a hard hit. `src/sim/world.ts`
-- **2026-10-21 Fix:** night shade eases in with dusk instead of snapping on. `src/view/draw.ts`
-- **2026-10-21 Fix:** a cooling toolbar slot drains, dims its icon, and shows a gold count. `src/main.ts` `index.html`
-- **2026-10-21 Fix:** friendly health bars share the deploy tick's slot and draw above night shade. The day cycle runs a bit longer. `src/view/draw.ts` `src/sim/world.ts`

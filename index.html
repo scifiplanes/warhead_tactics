@@ -10,18 +10,19 @@
         src: url("/fonts/PerfectDOS.ttf") format("truetype");
       }
       :root {
-        --paper: #000;
-        --card: #101010;
-        --ink: #c0c0c0;
-        --muted: #8a8a8a;
-        --rule: #6e6e6e;
-        --hud-bg: rgba(0, 0, 0, 0.78);
-        --hud-ink: #c0c0c0;
-        --hud-muted: #8a8a8a;
-        --hud-line: #6e6e6e;
-        --ok: #c0c0c0;
+        --paper: #0c0b09;
+        --card: #1a1612;
+        --ink: #a8a49c;
+        --muted: #6e6e6e;
+        --rule: #3a3834;
+        --hud-bg: rgba(12, 11, 9, 0.82);
+        --hud-ink: #a8a49c;
+        --hud-muted: #6e6e6e;
+        --hud-line: #3a3834;
+        --ok: #a8a49c;
         --danger: #a32020;
         --gold: #e1c15a;
+        --oxide: #8a5040;
         color-scheme: dark;
       }
       * { box-sizing: border-box; }
@@ -41,6 +42,46 @@
       .screen { position: absolute; inset: 0; overflow: auto; background: var(--paper); color: var(--ink); }
       .screen.hidden { display: none; }
       .menu { max-width: 1080px; margin: 0 auto; padding: 22px 18px 110px; }
+      .menu-tabs { display: flex; gap: 6px; margin: 14px 0 18px; }
+      .menu-tabs button {
+        flex: 0 0 auto;
+        min-width: 88px;
+        background: transparent;
+        border: 1px solid var(--rule);
+        color: var(--ink);
+        padding: 8px 14px;
+        cursor: pointer;
+        letter-spacing: 0.04em;
+      }
+      .menu-tabs button.on { background: #a8a49c; color: #0c0b09; border-color: #a8a49c; }
+      #world-pane.hidden, #builder.hidden { display: none; }
+      .world-layout { display: grid; grid-template-columns: 1fr 280px; gap: 18px; align-items: start; }
+      #world-map {
+        width: 100%;
+        max-width: 640px;
+        aspect-ratio: 1;
+        background: #2a2620;
+        border: 1px solid var(--rule);
+        image-rendering: pixelated;
+        touch-action: manipulation;
+        cursor: crosshair;
+      }
+      .world-side {
+        background: var(--card);
+        border: 1px solid var(--rule);
+        padding: 14px;
+        position: sticky;
+        top: 12px;
+      }
+      .world-side h2 { margin-top: 0; }
+      .world-side dl { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; margin: 10px 0 0; }
+      .world-side dt { color: var(--muted); }
+      .world-side dd { margin: 0; text-align: right; }
+      .world-side .hint { margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
+      @media (max-width: 860px) {
+        .world-layout { grid-template-columns: 1fr; }
+        .world-side { position: static; }
+      }
       .lede { margin: 8px 0 0; max-width: 62ch; color: var(--muted); line-height: 1.45; }
       #warn { color: var(--danger); min-height: 1.2em; }
       #warn:empty { display: none; }
@@ -96,9 +137,9 @@
       .diff { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
       .diff label { flex: 1; text-align: center; border: 1px solid var(--rule); padding: 6px 4px; cursor: pointer; position: relative; }
       .diff input { position: absolute; opacity: 0; inset: 0; }
-      .diff label:has(input:checked) { background: #c0c0c0; color: #000; }
+      .diff label:has(input:checked) { background: #a8a49c; color: #0c0b09; }
       #system label, #debug label { display: block; margin-top: 12px; }
-      #vol, #dither-alpha, #dither-cut, #dither-spread, #dither-levels { width: 100%; margin-top: 6px; accent-color: #c0c0c0; }
+      #vol, #dither-alpha, #dither-cut, #dither-spread, #dither-levels { width: 100%; margin-top: 6px; accent-color: #a8a49c; }
       #dither-on, .dither-row button {
         background: transparent;
         border: 1px solid var(--rule);
@@ -107,7 +148,7 @@
         cursor: pointer;
       }
       #dither-on { display: block; width: 100%; margin-top: 12px; }
-      #dither-on.on, .dither-row button.on { background: #c0c0c0; color: #000; }
+      #dither-on.on, .dither-row button.on { background: #a8a49c; color: #0c0b09; }
       .dither-row { display: flex; gap: 6px; margin-top: 12px; align-items: center; flex-wrap: wrap; }
       .dither-row span { width: 72px; flex: none; }
       .dither-row button { flex: 1; min-width: 52px; }
@@ -126,8 +167,8 @@
         display: block;
         width: 100%;
         margin-top: 12px;
-        background: #c0c0c0;
-        color: #000;
+        background: #a8a49c;
+        color: #0c0b09;
         border: 0;
         padding: 12px;
         font-size: 18px;
@@ -148,7 +189,7 @@
       .hud-tr { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; }
       #roster {
         display: grid;
-        grid-template-columns: auto 44px auto;
+        grid-template-columns: auto 44px auto auto;
         gap: 2px 6px;
         align-items: center;
         background: var(--hud-bg);
@@ -158,15 +199,46 @@
       }
       #roster .bar { height: 4px; background: rgba(255, 255, 255, 0.12); }
       #roster .bar i { display: block; height: 100%; background: var(--ok); }
+      #roster .kit, #kit {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px;
+        align-items: center;
+      }
+      #roster .kit canvas, #kit canvas {
+        width: 16px;
+        height: 16px;
+        image-rendering: pixelated;
+        display: block;
+        background: rgba(0, 0, 0, 0.35);
+      }
+      #kit {
+        background: var(--hud-bg);
+        border: 1px solid var(--hud-line);
+        padding: 4px 6px;
+        max-width: 100%;
+      }
+      #kit:empty { display: none; }
+      #kit .tag {
+        color: var(--hud-muted);
+        font-size: 10px;
+        margin-right: 2px;
+      }
       #toasts { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 4px; align-items: center; }
       .toast { background: var(--hud-bg); border-left: 4px solid var(--hud-muted); padding: 4px 10px; }
       .toast.danger { border-color: var(--danger); }
+      .toast.pick, .toast.loot { border-color: var(--gold); color: var(--gold); }
+      #kit.snap { animation: kit-snap 0.45s ease-out; }
+      @keyframes kit-snap {
+        0% { box-shadow: 0 0 0 0 rgba(225, 193, 90, 0.7); border-color: var(--gold); }
+        100% { box-shadow: 0 0 0 10px rgba(225, 193, 90, 0); }
+      }
       .hud-b { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; }
-      #toolbar { display: grid; grid-template-columns: repeat(9, 40px); gap: 3px; pointer-events: auto; }
+      #toolbar { display: grid; grid-template-columns: repeat(9, 44px); gap: 3px; pointer-events: auto; }
       .tool {
         position: relative;
-        width: 40px;
-        height: 40px;
+        width: 44px;
+        height: 44px;
         padding: 0;
         background: var(--hud-bg);
         border: 1px solid var(--hud-line);
@@ -207,7 +279,7 @@
       .tool.spent { border-color: #3a3a3a; }
       .tool.spent canvas { opacity: 0.22; }
       .tool.empty { opacity: 0.3; border-style: dashed; cursor: default; }
-      .tool.hot { background: #c0c0c0; color: #000; }
+      .tool.hot { background: #a8a49c; color: #000; }
       .tool.hot .c { color: #000; text-shadow: none; }
       #stick {
         position: absolute;
@@ -227,7 +299,7 @@
         top: 44px;
         width: 24px;
         height: 24px;
-        background: #c0c0c0;
+        background: #a8a49c;
       }
       #actions { display: flex; gap: 8px; pointer-events: auto; }
       #actions button, #pause, #bot {
@@ -254,6 +326,7 @@
       body.touch #actions { flex-direction: column; }
       body.touch #actions button { width: 84px; height: 48px; }
       body.touch #roster { display: none; }
+      body.touch #kit { display: flex; }
       body.touch .hud-tr { max-width: 52%; flex-wrap: wrap; justify-content: flex-end; }
       @media (max-width: 860px) {
         .builder { grid-template-columns: 1fr; }
@@ -267,40 +340,58 @@
     <section id="deck" class="screen">
       <div class="menu">
         <h1>WARHEAD TACTICS</h1>
-        <div class="builder">
-          <div id="cards"></div>
-          <aside class="deck">
-            <div class="deck-head"><h2>DECK</h2><span id="deckCount"></span></div>
-            <p class="lede" id="bank">CREDITS 0</p>
-            <div class="row">
-              <span>CAMPAIGN</span>
-              <button id="restart" class="ghost" type="button">RESTART</button>
-              <button id="system-open" class="ghost" type="button">SYSTEM</button>
-              <button id="debug-open" class="ghost" type="button">DEBUG</button>
-            </div>
-            <div id="finds"></div>
-            <ul id="deckList"></ul>
-            <div class="row">
-              <button id="clear" class="ghost" type="button">CLEAR</button>
-              <button id="fill" class="ghost" type="button">FILL</button>
-            </div>
-            <div class="diff">
-              <span>LOAD</span>
-              <label>LIGHT<input type="radio" name="diff" value="easy" /></label>
-              <label>STANDARD<input type="radio" name="diff" value="normal" checked /></label>
-              <label>HEAVY<input type="radio" name="diff" value="hard" /></label>
-            </div>
-            <label class="seed">SEED <input id="seed" type="number" /></label>
-            <button id="deploy" class="primary" type="button">DEPLOY</button>
-            <button id="deploy-bot" class="ghost" type="button">AUTOPLAY</button>
-            <p id="warn" class="lede"></p>
-          </aside>
+        <div class="menu-tabs" role="tablist">
+          <button id="tab-deck" class="on" type="button" role="tab" aria-selected="true">DECK</button>
+          <button id="tab-world" type="button" role="tab" aria-selected="false">WORLD</button>
+        </div>
+        <div id="builder">
+          <div class="builder">
+            <div id="cards"></div>
+            <aside class="deck">
+              <div class="deck-head"><h2>DECK</h2><span id="deckCount"></span></div>
+              <p class="lede" id="bank">CREDITS 0</p>
+              <div class="row">
+                <span>CAMPAIGN</span>
+                <button id="restart" class="ghost" type="button">RESTART</button>
+                <button id="system-open" class="ghost" type="button">SYSTEM</button>
+                <button id="debug-open" class="ghost" type="button">DEBUG</button>
+              </div>
+              <div id="finds"></div>
+              <ul id="deckList"></ul>
+              <div class="row">
+                <button id="clear" class="ghost" type="button">CLEAR</button>
+                <button id="fill" class="ghost" type="button">FILL</button>
+              </div>
+              <div class="diff">
+                <span>AUTOLOAD</span>
+                <label>LIGHT<input type="radio" name="diff" value="easy" /></label>
+                <label>STANDARD<input type="radio" name="diff" value="normal" checked /></label>
+                <label>HEAVY<input type="radio" name="diff" value="hard" /></label>
+              </div>
+              <label class="seed">SEED <input id="seed" type="number" /></label>
+              <button id="deploy" class="primary" type="button">DEPLOY</button>
+              <button id="deploy-bot" class="ghost" type="button">AUTOPLAY</button>
+              <p id="warn" class="lede"></p>
+            </aside>
+          </div>
+        </div>
+        <div id="world-pane" class="hidden">
+          <div class="world-layout">
+            <canvas id="world-map" width="640" height="640" aria-label="Campaign field graph"></canvas>
+            <aside class="world-side">
+              <h2 id="world-title">FIELD</h2>
+              <p class="lede" id="world-sub">Tap a node.</p>
+              <dl id="world-stats"></dl>
+              <p class="hint">Travel is still path / LZ on the field. This sheet only reads the campaign graph.</p>
+            </aside>
+          </div>
         </div>
       </div>
     </section>
     <div id="hud" class="hidden">
       <div class="hud-tl">
         <div class="pill" id="timer"></div>
+        <div id="kit"></div>
         <div id="roster"></div>
       </div>
       <div class="hud-tr">

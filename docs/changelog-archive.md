@@ -2,6 +2,31 @@
 
 Moved from `docs/changelog.md` when that file outgrows its cap.
 
+- **2026-10-22 Design:** soldier sprites keep the old proportions with a muted face; the held gun is stamped from the loadout so rifle, SMG, shotgun, sniper, rail, MG, handgun, lob, bow, and blade read apart, and optic, mag, brace, grip, and muzzle mark the gun. `src/view/sprites.ts` `src/view/draw.ts`
+- **2026-10-21 Design:** FPV hits harder and wider so the inbound reads as a real strike. `src/sim/world.ts`
+- **2026-10-21 Design:** FPV is an over-the-horizon inbound like CAS, priced above a blade, and rides the JTAC and laser stack. `src/content/catalog.ts` `src/sim/world.ts`
+- **2026-10-21 Fix:** Purge and Haul finish marks read 8/8 and 3/3; no progress chatter. `src/sim/world.ts`
+- **2026-10-21 Fix:** the field HUD keeps only the clock; lost, drop, and bounty pills are gone. `src/main.ts` `index.html`
+- **2026-10-21 Feat:** weapons have primary and secondary hands; combat picks by range and fire rules; handguns, SMG, shotguns, and rail join the roster. `src/content/catalog.ts` `src/sim/world.ts`
+- **2026-10-21 Fix:** a blade uses its reach on flesh and no longer aims the lamp at gun-range ghosts. `src/sim/world.ts`
+- **2026-10-21 Fix:** night beam glow no longer sits on the Lead's rifle; soldier gun pixels read on the mud. `src/view/draw.ts` `src/view/sprites.ts`
+- **2026-10-21 Design:** research stock is economy-gated: no per-card max, copies stop at the deck cap, free-deploy cards still pay a rifle-floor research step. `src/content/catalog.ts` `src/meta/profile.ts`
+- **2026-10-21 Feat:** research depth sets deck copies; each next research of a find costs another step and reads MORE; extract lists new research. `src/meta/profile.ts` `src/main.ts`
+- **2026-10-21 Feat:** pending research is a count on the deck; the sheet groups by kind and puts affordable finds first. `src/main.ts` `index.html`
+- **2026-10-21 Fix:** melee bites a hull's skin, and a 0 hp hull dies instead of pinning the pack. `src/sim/world.ts`
+- **2026-10-21 Fix:** a ruin stutter no longer stacks scrapes into a quick kill. `src/sim/world.ts`
+- **2026-10-21 Feat:** guns take optic, grip, mag, brace, and muzzle cards; a new gun dumps those parts onto the mud as themselves, not crates. `src/content/catalog.ts` `src/sim/world.ts` `src/view/draw.ts`
+- **2026-10-25 Feat:** shrink infantry/feral canvas; HOLD pocket x≈12; medic/android pins; hull/prop shrink passes (superseded by cast-dense bullet). `src/view/sprites.ts`
+- **2026-10-21 Fix:** melee bites a hull's skin, and a 0 hp hull dies instead of pinning the pack. `src/sim/world.ts`
+- **2026-10-21 Fix:** a ruin stutter no longer stacks scrapes into a quick kill. `src/sim/world.ts`
+- **2026-10-21 Feat:** guns take optic, grip, mag, brace, and muzzle cards; a new gun dumps those parts onto the mud as themselves, not crates. `src/content/catalog.ts` `src/sim/world.ts` `src/view/draw.ts`
+- **2026-10-21 Feat:** gunship, rocket, and bomber are toolbar call-ins: crate pickup, press spawns a circling sortie bird, one at a time, cooldown from the press. Gunboat stays leashed. `src/content/catalog.ts` `src/sim/world.ts`
+- **2026-10-21 Fix:** a bite scrapes a hull, and the tank, plow, and HEX walkers hold more steel. `src/sim/world.ts` `src/content/catalog.ts`
+- **2026-10-21 Feat:** airframes circle the Lead aloft with a ground shadow, pull toward a fight, and keep their guns; rocket and bomber lob from the air. `src/sim/world.ts` `src/view/draw.ts`
+- **2026-10-21 Fix:** a hull scrapes cover for light wear instead of a hard hit. `src/sim/world.ts`
+- **2026-10-21 Fix:** night shade eases in with dusk instead of snapping on. `src/view/draw.ts`
+- **2026-10-21 Fix:** a cooling toolbar slot drains, dims its icon, and shows a gold count. `src/main.ts` `index.html`
+- **2026-10-21 Fix:** friendly health bars share the deploy tick's slot and draw above night shade. The day cycle runs a bit longer. `src/view/draw.ts` `src/sim/world.ts`
 - **2026-10-21 Feat:** a thin health bar sits above each living friendly. Hostiles stay unmarked. `src/view/draw.ts`
 - **2026-10-21 Fix:** extract banks field finds for research only; the buy grid stays gated on researched cards. `src/sim/world.ts` `src/meta/profile.ts`
 - **2026-10-20 Feat:** a JTAC tightens CAS and radio, and the gunship, rocket, and bomber leash like the gunboat for a short sortie then leave. A laser paints the next of those strikes. FPV stays separate. `src/content/catalog.ts`
