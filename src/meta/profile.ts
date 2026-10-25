@@ -10,7 +10,7 @@ export type Profile = {
   /** Times researched; also the copy stock for the deck. */
   depth: Record<string, number>
   wear: Record<string, number>
-  /** Free deploy copies from finds hauled out on extract (shown as RECOVERED). */
+  /** Consumable free deploy copies from finds hauled out on extract (RECOVERED). */
   salvage: Record<string, number>
   /** True after one-time grant of free stock for pre-recovered unlocks. */
   salvageBoot?: boolean
@@ -245,6 +245,23 @@ export function applyWear(p: Profile, deck: string[]) {
     copies[id] = (copies[id] ?? 0) + 1
   }
   for (const id of Object.keys(copies)) p.wear[id] = (p.wear[id] ?? 0) + copies[id]
+}
+
+/** Spend RECOVERED free copies used in this deck (win or wipe). Paid CR copies leave salvage alone. */
+export function spendSalvage(p: Profile, deck: string[]) {
+  if (!p.salvage) p.salvage = {}
+  const used: Record<string, number> = {}
+  for (const id of deck) {
+    if (priceOf(id) <= 0) continue
+    used[id] = (used[id] ?? 0) + 1
+  }
+  for (const id of Object.keys(used)) {
+    const free = p.salvage[id] ?? 0
+    if (free <= 0) continue
+    const left = free - Math.min(free, used[id])
+    if (left > 0) p.salvage[id] = left
+    else delete p.salvage[id]
+  }
 }
 
 /** How many copies the deck may take (research depth). */

@@ -2,6 +2,7 @@
 
 Newest first. Older → `docs/changelog-archive.md`.
 
+- **2026-10-25 Fix:** RECOVERED free copies are spent when the card is deployed, not kept after a wipe. `src/meta/profile.ts` `src/main.ts`
 - **2026-10-25 Fix:** deck guns and optics outfit the Lead at step-off even when a hull is also queued; touch HUD keeps the roster. `src/sim/world.ts` `index.html`
 - **2026-10-25 Fix:** extract unlocks only the craft haul as RECOVERED; finds merely seen or left behind stay research-gated. `src/meta/profile.ts`
 - **2026-10-25 Design:** each deck hull gets its own stamp — drill, plow, tube, pump, cutter, buggy, tech, SUV, steed, cart, mule, IFV — and crowhead/goathead plus section air leave the shared drone/jeep/tank borrows. `src/view/sprites.ts` `docs/design/art.md`

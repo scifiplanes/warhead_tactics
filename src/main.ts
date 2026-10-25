@@ -12,6 +12,7 @@ import {
   restart,
   save,
   settleHeroes,
+  spendSalvage,
   stockOf,
   unlockExtracted,
   type Profile,
@@ -731,6 +732,7 @@ function start(asBot: boolean) {
   settled = false
   profile.credits -= cost
   applyWear(profile, deck)
+  spendSalvage(profile, deck)
   save(profile)
   bot = asBot
   speed = 1

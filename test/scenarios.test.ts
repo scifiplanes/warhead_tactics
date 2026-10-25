@@ -22,6 +22,7 @@ import {
   research,
   restart,
   settleHeroes,
+  spendSalvage,
   stockOf,
   unlockExtracted,
 } from "../src/meta/profile"
@@ -1308,6 +1309,14 @@ test("wipe banks finds for research; extract unlocks only the haul", () => {
   expect(deployCost(["jeep"], {}, profile.salvage)).toBe(0)
   expect(costLabel("jeep", 0, 0, 1)).toBe("RECOVERED")
   expect(deployCost(["jeep", "jeep"], {}, profile.salvage)).toBe(priceOf("jeep") * 2)
+  spendSalvage(profile, ["jeep"])
+  expect(profile.salvage.jeep).toBeUndefined()
+  expect(deployCost(["jeep"], {}, profile.salvage)).toBe(priceOf("jeep"))
+  expect(costLabel("jeep", 0, 0, 0)).toBe(`${priceOf("jeep")} CR`)
+  profile.salvage.jeep = 2
+  spendSalvage(profile, ["jeep"])
+  expect(profile.salvage.jeep).toBe(1)
+  expect(deployCost(["jeep"], {}, profile.salvage)).toBe(0)
   expect(unlockExtracted(profile, w.found, haul)).toEqual([])
   for (const id of haul) {
     expect(profile.salvage[id]).toBe(2)
