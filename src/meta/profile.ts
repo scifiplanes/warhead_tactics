@@ -142,15 +142,16 @@ export function bankFinds(p: Profile, found: string[]): string[] {
 }
 
 /**
- * Successful extract: finds become loadout-ready. Only finds actually hauled out
- * (`recovered`) get a free RECOVERED deploy copy — abandoned kit (spent sentry, etc.) does not.
- * A wipe still only banks them for research via `bankFinds`.
+ * Successful extract: bank every field find for research, but only cards hauled out on
+ * the craft (`recovered`) become loadout-ready — each haul grants one free RECOVERED
+ * deploy copy. Abandoned kit (spent sentry, left hulls, ground finds) stays research-only.
+ * A wipe still only banks finds via `bankFinds`.
  */
 export function unlockExtracted(p: Profile, found: string[], recovered: string[] = []): string[] {
   if (!p.salvage) p.salvage = {}
-  const hauled = new Set(recovered.filter((id) => !isHero(id)))
+  bankFinds(p, found)
   const unlocked: string[] = []
-  for (const id of found) {
+  for (const id of recovered) {
     if (isHero(id)) continue
     if (!p.found.includes(id)) p.found.push(id)
     const fresh = !p.known.includes(id)
@@ -158,12 +159,8 @@ export function unlockExtracted(p: Profile, found: string[], recovered: string[]
       p.known.push(id)
       unlocked.push(id)
     }
-    if (hauled.has(id)) {
-      p.salvage[id] = (p.salvage[id] ?? 0) + 1
-      p.depth[id] = Math.max(p.depth[id] ?? 0, p.salvage[id])
-    } else if ((p.depth[id] ?? 0) < 1) {
-      p.depth[id] = 1
-    }
+    p.salvage[id] = (p.salvage[id] ?? 0) + 1
+    p.depth[id] = Math.max(p.depth[id] ?? 0, p.salvage[id])
   }
   return unlocked
 }

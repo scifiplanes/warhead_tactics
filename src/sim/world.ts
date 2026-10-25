@@ -538,6 +538,9 @@ export function makeRun(seed: number, deck: string[], opts: RunOpts = {}): World
   // Field first so deck shuffle keeps the same rng stream as before the graph.
   rollField(w, nodeOf(w))
   nodeOf(w).visited = true
+  w.heroes = {}
+  for (const hero of opts.heroes ?? []) w.heroes[hero.id] = hero
+  w.veteranIds = (opts.heroes ?? []).map((hero) => hero.id)
   const ordered = deck.slice(0, DECK_CAP)
   const seen: Record<string, number> = {}
   const wear = opts.wear ?? {}
@@ -546,16 +549,18 @@ export function makeRun(seed: number, deck: string[], opts: RunOpts = {}): World
     seen[id] = n + 1
     return { id, cost: paidFor(id, wear[id] ?? 0, n) }
   })
-  shuffle(w.rng, paired)
-  w.deck = paired.map((row) => row.id)
+  // Body gear must lead the queue so the Lead wears it at step-off. Shuffle only
+  // units / vehicles / section tools — a mid-queue hull used to eat the kit prefix.
+  const kit = paired.filter((row) => deckGearId(w, row.id))
+  const drops = paired.filter((row) => !deckGearId(w, row.id))
+  shuffle(w.rng, drops)
+  const flat = [...kit, ...drops]
+  w.deck = flat.map((row) => row.id)
   w.deckQueue = w.deck.slice()
-  w.deckPay = paired.map((row) => row.cost)
+  w.deckPay = flat.map((row) => row.cost)
   w.unlocked = (opts.known ?? []).slice()
   w.found = []
   w.hidden = (opts.hidden ?? []).filter((id) => !w.unlocked.includes(id))
-  w.heroes = {}
-  for (const hero of opts.heroes ?? []) w.heroes[hero.id] = hero
-  w.veteranIds = (opts.heroes ?? []).map((hero) => hero.id)
   shuffle(w.rng, w.hidden)
   w.nextDrop = 8
   w.nextHorde = 2
@@ -1422,10 +1427,14 @@ function landInbound(w: World, dt: number) {
   }
 }
 
-function isBodyGear(w: World, cardId: string): boolean {
+function deckGearId(w: World, cardId: string): boolean {
   if (w.heroes[cardId]) return false
   const row = CARDS.find((c) => c.id === cardId)
   return !!row && row.kind === "gear" && row.fits !== "section"
+}
+
+function isBodyGear(w: World, cardId: string): boolean {
+  return deckGearId(w, cardId)
 }
 
 function hostChassis(w: World, cardId: string): ReturnType<typeof card> {

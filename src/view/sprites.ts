@@ -202,6 +202,70 @@ const PIG = [
   ],
 ]
 const CORPSE: Pal = { h: "#4a4840", c: "#36322c", b: "#1a1612" }
+/** Goathead — horned skull mass on dirty coat. */
+const GOAT = [
+  [
+    "................",
+    "...h....h.......",
+    "....hhhh........",
+    "...hhhhhh.......",
+    "...hh.hhh.......",
+    "..hh.cccc.......",
+    "..cccccccc......",
+    "..cccccccc......",
+    "..cccccc........",
+    "..ccccc.........",
+    "..cc.c.c........",
+    "..c....c........",
+    "..b....b........",
+  ],
+  [
+    "................",
+    "...h....h.......",
+    "....hhhh........",
+    "...hhhhhh.......",
+    "...hh.hhh.......",
+    "..hh.cccc.......",
+    "..cccccccc......",
+    "..cccccccc......",
+    "..ccc.c.........",
+    ".c....c.........",
+    "c......c........",
+    "b.......b.......",
+  ],
+]
+/** Crowhead — beaked head, hunched flesh (not a rust drone). */
+const CROW = [
+  [
+    "................",
+    ".....hh.........",
+    "....hhhh........",
+    "...hh.hhh.......",
+    "...h..cc........",
+    "..h.ccccc.......",
+    "..cccccccc......",
+    "..ccccccc.......",
+    "..ccccc.........",
+    "..ccc.c.........",
+    "..cc...c........",
+    "..c....c........",
+    "..b....b........",
+  ],
+  [
+    "................",
+    ".....hh.........",
+    "....hhhh........",
+    "...hh.hhh.......",
+    "...h..cc........",
+    "..h.ccccc.......",
+    "..cccccccc......",
+    "..ccccc.c.......",
+    "..cc...c........",
+    ".c.....c........",
+    "c.......c.......",
+    "b........b......",
+  ],
+]
 const MUTANT = [
   [
     "................",
@@ -254,6 +318,120 @@ const DRONE = [
 ]
 const DP: Pal = { x: "#3a3a38", o: "#2a4e4a" }
 const SCOOT: Pal = { x: "#3a403e", o: "#6e6e6e" }
+/** Low squat scoot — wider pads than drone. */
+const SCOOT_F = [
+  [
+    "........",
+    ".xxxxxx.",
+    "xxxxxxxx",
+    "xxoxxxxx",
+    "xxxxxxxx",
+    ".xx..xx.",
+  ],
+  [
+    "........",
+    "xx....xx",
+    "xxxxxxxx",
+    "xxoxxxxx",
+    "xxxxxxxx",
+    "..xxxx..",
+  ],
+]
+/** Kite — thin winged flyer. */
+const KITE_F = [
+  [
+    "........",
+    "x..xx..x",
+    ".xxxxxx.",
+    "..xoxx..",
+    ".xxxxxx.",
+    "..x..x..",
+  ],
+  [
+    "........",
+    ".x.xx.x.",
+    "x.xxxx.x",
+    "..xoxx..",
+    ".xxxxxx.",
+    "...xx...",
+  ],
+]
+/** Flake — jagged pack shard. */
+const FLAKE_F = [
+  [
+    "........",
+    "..x.x...",
+    ".xxxxx..",
+    "xxoxxxx.",
+    ".xxxxx..",
+    "..x.x...",
+  ],
+  [
+    "........",
+    ".x...x..",
+    "..xxxxx.",
+    ".xxoxxx.",
+    "..xxxxx.",
+    ".x...x..",
+  ],
+]
+/** Section copter — rotor bar + cabin. */
+const COPTER_F = [
+  [
+    "........",
+    "xxxxxxxx",
+    "...xx...",
+    "..xxxx..",
+    ".xxoxx..",
+    "..xxxx..",
+  ],
+  [
+    "........",
+    ".xxxxxx.",
+    "...xx...",
+    "..xxxx..",
+    ".xxoxx..",
+    ".xx..xx.",
+  ],
+]
+/** Biohawk — organic wing mass. */
+const HAWK_F = [
+  [
+    "........",
+    ".xx..xx.",
+    "xxxxxxxx",
+    ".xxoxx..",
+    "..xxxx..",
+    "...xx...",
+  ],
+  [
+    "........",
+    "xx....xx",
+    ".xxxxxx.",
+    "..xoxx..",
+    ".xxxxxx.",
+    "...xx...",
+  ],
+]
+/** Middlestrike spotter — long thin fuselage. */
+const MID_F = [
+  [
+    "........",
+    "...xx...",
+    "..xxxx..",
+    "xxxoxxxx",
+    "..xxxx..",
+    "...xx...",
+  ],
+  [
+    "........",
+    "..x..x..",
+    "..xxxx..",
+    "xxxoxxxx",
+    "..xxxx..",
+    "..x..x..",
+  ],
+]
 /** Walkers — foreshortened biped mass + single dark optic. */
 const WALKER = [
   [
@@ -1257,6 +1435,249 @@ function mrap(): VehArt {
   return { body: b, turret: t, pivot: [3, 3], mount: [0, 0] }
 }
 
+/** Dozer — blade mass ahead of a short heavy hull. */
+function plow(): VehArt {
+  const b = cv(24, 16)
+  const g = b.getContext("2d")!
+  rects(g, "#2a2a24", [[4, 0, 20, 3], [4, 13, 20, 3]])
+  rects(g, "#3e3c36", [[5, 3, 18, 10]])
+  rects(g, "#5a5850", [[18, 4, 4, 8]])
+  // angled blade
+  rects(g, "#6a6860", [[0, 2, 5, 12]])
+  rects(g, "#4a4840", [[0, 2, 1, 12], [4, 3, 1, 10]])
+  rects(g, "#8a8680", [[1, 3, 2, 1], [1, 12, 2, 1]])
+  shadeFlat(b)
+  const t = cv(12, 6)
+  const h = t.getContext("2d")!
+  rects(h, "#3a3834", [[0, 0, 5, 6]])
+  rects(h, "#1a1a18", [[5, 2, 7, 1]])
+  return { body: b, turret: t, pivot: [2.5, 3], mount: [2, 0] }
+}
+
+/** Open cage buggy — roll bar + exposed seats. */
+function buggy(): VehArt {
+  const b = cv(18, 11)
+  const g = b.getContext("2d")!
+  rects(g, "#141414", [[1, 0, 3, 2], [14, 0, 3, 2], [1, 9, 3, 2], [14, 9, 3, 2]])
+  rects(g, "#3a3834", [[2, 3, 14, 5]])
+  rects(g, "#2a2824", [[2, 3, 14, 1], [2, 7, 14, 1]])
+  // roll cage
+  rects(g, "#6a6860", [[3, 1, 1, 7], [14, 1, 1, 7], [3, 1, 12, 1]])
+  rects(g, "#5a5850", [[6, 2, 1, 2], [11, 2, 1, 2]])
+  // seat pads
+  rects(g, "#4a4840", [[5, 5, 3, 2], [10, 5, 3, 2]])
+  shadeFlat(b)
+  const t = cv(10, 4)
+  const h = t.getContext("2d")!
+  rects(h, "#3b4046", [[0, 1, 3, 2]])
+  rects(h, "#1d2124", [[3, 1, 7, 1]])
+  return { body: b, turret: t, pivot: [1.5, 2], mount: [-2, -1] }
+}
+
+/** Technical — flatbed jeep with a tall pintle. */
+function tech(): VehArt {
+  const b = cv(20, 11)
+  const g = b.getContext("2d")!
+  rects(g, "#141414", [[2, 0, 3, 2], [7, 0, 3, 2], [14, 0, 4, 2], [2, 9, 3, 2], [7, 9, 3, 2], [14, 9, 4, 2]])
+  // bed
+  rects(g, "#3a3834", [[1, 2, 12, 7]])
+  rects(g, "#2e2c28", [[1, 2, 12, 1], [1, 8, 12, 1]])
+  // cab
+  rects(g, "#4a4840", [[13, 1, 6, 9]])
+  rects(g, "#5a5850", [[16, 2, 3, 7]])
+  // bed rails
+  rects(g, "#6a6860", [[2, 2, 1, 6], [11, 2, 1, 6]])
+  shadeFlat(b)
+  const t = cv(12, 7)
+  const h = t.getContext("2d")!
+  rects(h, "#3a3834", [[0, 2, 3, 4]])
+  rects(h, "#2a2824", [[1, 0, 1, 3]])
+  rects(h, "#1a1a18", [[3, 3, 9, 1]])
+  return { body: b, turret: t, pivot: [1.5, 3.5], mount: [-4, -1] }
+}
+
+/** Closed wagon SUV — taller cabin, no bed. */
+function suv(): VehArt {
+  const b = cv(20, 12)
+  const g = b.getContext("2d")!
+  rects(g, "#141414", [[2, 0, 3, 2], [8, 0, 3, 2], [14, 0, 3, 2], [2, 10, 3, 2], [8, 10, 3, 2], [14, 10, 3, 2]])
+  rects(g, "#4a4840", [[1, 2, 18, 8]])
+  rects(g, "#5a5850", [[1, 2, 18, 2]])
+  rects(g, "#2e2c28", [[1, 2, 1, 8], [1, 9, 18, 1]])
+  // cabin glass band
+  rects(g, "#2a2824", [[4, 4, 4, 3], [10, 4, 4, 3]])
+  rects(g, "#6a6860", [[15, 3, 4, 6]])
+  shadeFlat(b)
+  const t = cv(10, 5)
+  const h = t.getContext("2d")!
+  rects(h, "#3b4046", [[0, 1, 4, 3]])
+  rects(h, "#1d2124", [[4, 2, 6, 1]])
+  return { body: b, turret: t, pivot: [2, 2.5], mount: [0, -1] }
+}
+
+/** Robohorse — four pads + arched body, not a bike. */
+function steed(): VehArt {
+  const b = cv(16, 10)
+  const g = b.getContext("2d")!
+  // legs / pads
+  rects(g, "#141414", [[1, 7, 3, 3], [5, 7, 3, 3], [9, 7, 3, 3], [12, 7, 3, 3]])
+  // arched torso
+  rects(g, "#4a4840", [[2, 3, 12, 4]])
+  rects(g, "#5a5850", [[3, 2, 9, 2]])
+  rects(g, "#2e2c28", [[2, 6, 12, 1], [6, 1, 3, 2]])
+  // neck / head stub
+  rects(g, "#3a3834", [[12, 1, 3, 3]])
+  rects(g, "#1a1a18", [[14, 2, 1, 1]])
+  shadeFlat(b)
+  const t = cv(8, 3)
+  rects(t.getContext("2d")!, "#1d2124", [[1, 1, 7, 1]])
+  return { body: b, turret: t, pivot: [1, 1.5], mount: [2, -2] }
+}
+
+/** Slow cargo robot — open tray on short tracks. */
+function cart(): VehArt {
+  const b = cv(16, 10)
+  const g = b.getContext("2d")!
+  rects(g, "#141414", [[1, 0, 3, 2], [6, 0, 3, 2], [11, 0, 3, 2], [1, 8, 3, 2], [6, 8, 3, 2], [11, 8, 3, 2]])
+  rects(g, "#3a3834", [[1, 2, 14, 6]])
+  rects(g, "#2a2824", [[1, 2, 14, 1], [1, 7, 14, 1], [1, 2, 1, 6]])
+  // open tray walls
+  rects(g, "#5a5850", [[2, 3, 1, 4], [13, 3, 1, 4], [2, 3, 12, 1]])
+  rects(g, "#4a4840", [[4, 4, 8, 3]])
+  shadeFlat(b)
+  const t = cv(8, 4)
+  const h = t.getContext("2d")!
+  rects(h, "#3b4046", [[0, 1, 3, 2]])
+  rects(h, "#1d2124", [[3, 1, 5, 1]])
+  return { body: b, turret: t, pivot: [1.5, 2], mount: [0, -1] }
+}
+
+/** Heavier cargo robot — closed crate body. */
+function mule(): VehArt {
+  const b = cv(20, 12)
+  const g = b.getContext("2d")!
+  rects(g, "#141414", [[2, 0, 3, 2], [8, 0, 3, 2], [14, 0, 3, 2], [2, 10, 3, 2], [8, 10, 3, 2], [14, 10, 3, 2]])
+  rects(g, "#3e3c36", [[1, 2, 18, 8]])
+  rects(g, "#2e2c28", [[1, 2, 18, 1], [1, 9, 18, 1], [1, 2, 1, 8]])
+  // crate lid / straps
+  rects(g, "#5a5850", [[3, 3, 14, 2]])
+  rects(g, "#4a4840", [[4, 5, 3, 3], [9, 5, 3, 3], [14, 5, 3, 3]])
+  rects(g, "#6a6860", [[2, 3, 1, 6], [17, 3, 1, 6]])
+  shadeFlat(b)
+  const t = cv(10, 5)
+  const h = t.getContext("2d")!
+  rects(h, "#3b4046", [[0, 1, 4, 3]])
+  rects(h, "#1d2124", [[4, 2, 6, 1]])
+  return { body: b, turret: t, pivot: [2, 2.5], mount: [0, -1] }
+}
+
+/** IFV — APC mass with a taller fighting turret. */
+function ifv(): VehArt {
+  const b = cv(24, 14)
+  const g = b.getContext("2d")!
+  rects(g, "#141414", [[3, 0, 3, 2], [8, 0, 3, 2], [13, 0, 3, 2], [18, 0, 3, 2], [3, 12, 3, 2], [8, 12, 3, 2], [13, 12, 3, 2], [18, 12, 3, 2]])
+  rects(g, "#4a4840", [[1, 1, 22, 12]])
+  rects(g, "#2e2c28", [[1, 1, 22, 1], [1, 12, 22, 1], [1, 1, 1, 12]])
+  rects(g, "#5a5850", [[18, 2, 5, 10]])
+  // troop hatch line
+  rects(g, "#3a3834", [[6, 4, 10, 6]])
+  rects(g, "#2a2824", [[8, 5, 2, 2], [12, 5, 2, 2]])
+  shadeFlat(b)
+  const t = cv(16, 8)
+  const h = t.getContext("2d")!
+  rects(h, "#3a3834", [[0, 0, 8, 8]])
+  rects(h, "#5a5850", [[1, 1, 6, 2]])
+  rects(h, "#1a1a18", [[8, 3, 8, 2]])
+  return { body: b, turret: t, pivot: [4, 4], mount: [0, -1] }
+}
+
+/** Towed 60mm — short carrier + tube as the rotating mass. */
+function tube(): VehArt {
+  const b = cv(18, 10)
+  const g = b.getContext("2d")!
+  rects(g, "#141414", [[1, 0, 3, 2], [7, 0, 3, 2], [13, 0, 3, 2], [1, 8, 3, 2], [7, 8, 3, 2], [13, 8, 3, 2]])
+  rects(g, "#3a3834", [[1, 2, 16, 6]])
+  rects(g, "#2e2c28", [[1, 2, 16, 1], [1, 7, 16, 1]])
+  // trail / hitch
+  rects(g, "#4a4840", [[0, 4, 3, 2]])
+  rects(g, "#5a5850", [[14, 3, 3, 4]])
+  shadeFlat(b)
+  const t = cv(14, 8)
+  const h = t.getContext("2d")!
+  rects(h, "#3a3834", [[0, 3, 4, 3]])
+  rects(h, "#2a2824", [[2, 0, 2, 4]])
+  rects(h, "#4a4840", [[4, 2, 8, 3]])
+  rects(h, "#1a1a18", [[12, 3, 2, 1]])
+  return { body: b, turret: t, pivot: [2, 4], mount: [-2, -1] }
+}
+
+/** Drill rig — chassis with a forward auger bit. */
+function drill(): VehArt {
+  const b = cv(22, 14)
+  const g = b.getContext("2d")!
+  rects(g, "#141414", [[6, 0, 3, 2], [11, 0, 3, 2], [16, 0, 3, 2], [6, 12, 3, 2], [11, 12, 3, 2], [16, 12, 3, 2]])
+  rects(g, "#3e3c36", [[5, 2, 16, 10]])
+  rects(g, "#2e2c28", [[5, 2, 16, 1], [5, 11, 16, 1]])
+  rects(g, "#4a4840", [[14, 3, 6, 8]])
+  // mast
+  rects(g, "#5a5850", [[8, 1, 2, 11]])
+  rects(g, "#6a6860", [[7, 1, 4, 1]])
+  // auger bit — stepped cone
+  rects(g, "#6a6860", [[0, 5, 5, 4]])
+  rects(g, "#4a4840", [[1, 4, 3, 1], [1, 9, 3, 1]])
+  rects(g, "#8a8680", [[0, 6, 2, 2]])
+  rects(g, "#2a2824", [[2, 6, 1, 2], [4, 6, 1, 2]])
+  shadeFlat(b)
+  const t = cv(10, 5)
+  const h = t.getContext("2d")!
+  rects(h, "#3b4046", [[0, 1, 4, 3]])
+  rects(h, "#1d2124", [[4, 2, 6, 1]])
+  return { body: b, turret: t, pivot: [2, 2.5], mount: [3, -1] }
+}
+
+/** Pump rig — tank body + upright pump head. */
+function pump(): VehArt {
+  const b = cv(18, 12)
+  const g = b.getContext("2d")!
+  rects(g, "#141414", [[2, 0, 3, 2], [8, 0, 3, 2], [13, 0, 3, 2], [2, 10, 3, 2], [8, 10, 3, 2], [13, 10, 3, 2]])
+  rects(g, "#3a3834", [[1, 4, 16, 6]])
+  rects(g, "#2e2c28", [[1, 4, 16, 1], [1, 9, 16, 1]])
+  // cylindrical tank
+  rects(g, "#4a4840", [[3, 5, 10, 4]])
+  rects(g, "#5a5850", [[4, 5, 8, 1]])
+  // pump head
+  rects(g, "#6a6860", [[12, 1, 4, 5]])
+  rects(g, "#3a3834", [[13, 0, 2, 2]])
+  rects(g, "#2a2824", [[14, 2, 1, 3]])
+  shadeFlat(b)
+  const t = cv(8, 4)
+  const h = t.getContext("2d")!
+  rects(h, "#3b4046", [[0, 1, 3, 2]])
+  rects(h, "#1d2124", [[3, 1, 5, 1]])
+  return { body: b, turret: t, pivot: [1.5, 2], mount: [2, -2] }
+}
+
+/** Cutter — short hull with a torch arm. */
+function cutter(): VehArt {
+  const b = cv(18, 11)
+  const g = b.getContext("2d")!
+  rects(g, "#141414", [[2, 0, 3, 2], [8, 0, 3, 2], [13, 0, 3, 2], [2, 9, 3, 2], [8, 9, 3, 2], [13, 9, 3, 2]])
+  rects(g, "#3e3c36", [[1, 2, 16, 7]])
+  rects(g, "#2e2c28", [[1, 2, 16, 1], [1, 8, 16, 1]])
+  rects(g, "#4a4840", [[10, 3, 6, 5]])
+  // torch arm base
+  rects(g, "#5a5850", [[3, 3, 4, 4]])
+  rects(g, "#6a6860", [[4, 1, 2, 3]])
+  shadeFlat(b)
+  const t = cv(12, 5)
+  const h = t.getContext("2d")!
+  rects(h, "#3a3834", [[0, 1, 4, 3]])
+  rects(h, "#6a6860", [[4, 2, 6, 1]])
+  rects(h, "#8a8680", [[10, 1, 2, 3]])
+  rects(h, "#a8a49c", [[11, 2, 1, 1]])
+  return { body: b, turret: t, pivot: [2, 2.5], mount: [-4, -1] }
+}
+
 function gunship() {
   const b = cv(16, 8)
   const g = b.getContext("2d")!
@@ -1345,23 +1766,21 @@ function boot() {
   flesh("shambler", ZOMBIE, CORPSE)
   flesh("doghead", DOG, CORPSE)
   flesh("pighead", PIG, { ...CORPSE, h: "#6a5848" })
-  flesh("goathead", DOG, { ...CORPSE, h: "#6a6058" })
+  flesh("goathead", GOAT, { ...CORPSE, h: "#6a6058" })
+  flesh("crowhead", CROW, { ...CORPSE, h: "#3a3834", c: "#2a2824" })
   flesh("k9", DOG, { h: "#6a6860", c: "#4a4840", b: "#1a1814" })
   MUTANT.forEach((rows, i) => actors.set(`mutant:${i ? "walk" : "idle"}`, npc(rows, MP)))
-  DRONE.forEach((rows, i) => {
-    actors.set(`drone:${i ? "walk" : "idle"}`, npc(rows, DP))
-    actors.set(`scoot:${i ? "walk" : "idle"}`, npc(rows, SCOOT))
-  })
+  DRONE.forEach((rows, i) => actors.set(`drone:${i ? "walk" : "idle"}`, npc(rows, DP)))
+  SCOOT_F.forEach((rows, i) => actors.set(`scoot:${i ? "walk" : "idle"}`, npc(rows, SCOOT)))
   WALKER.forEach((rows, i) => actors.set(`walker:${i ? "walk" : "idle"}`, npc(rows, WP)))
-  DRONE.forEach((rows, i) => actors.set(`crowhead:${i ? "walk" : "idle"}`, npc(rows, { x: "#4a4844", o: "#6a3030" })))
   WALKER.forEach((rows, i) => actors.set(`tract:${i ? "walk" : "idle"}`, npc(rows, { X: "#3a4848", x: "#2a3434", o: "#6e6e6e" })))
   COIL.forEach((rows, i) => actors.set(`coil:${i ? "walk" : "idle"}`, npc(rows, COIL_P)))
-  DRONE.forEach((rows, i) => actors.set(`flake:${i ? "walk" : "idle"}`, npc(rows, { x: "#5a6a6a", o: "#6e6e6e" })))
+  FLAKE_F.forEach((rows, i) => actors.set(`flake:${i ? "walk" : "idle"}`, npc(rows, { x: "#5a6a6a", o: "#6e6e6e" })))
   WALKER.forEach((rows, i) => actors.set(`roller:${i ? "walk" : "idle"}`, npc(rows, { X: "#4a4844", x: "#2e2c28", o: "#6a6860" })))
-  DRONE.forEach((rows, i) => actors.set(`kite:${i ? "walk" : "idle"}`, npc(rows, { x: "#6a6860", o: "#6e6e6e" })))
+  KITE_F.forEach((rows, i) => actors.set(`kite:${i ? "walk" : "idle"}`, npc(rows, { x: "#6a6860", o: "#6e6e6e" })))
   WALKER.forEach((rows, i) => actors.set(`slab:${i ? "walk" : "idle"}`, npc(rows, { X: "#3a3834", x: "#2a2824", o: "#5a5850" })))
-  DRONE.forEach((rows, i) => actors.set(`copter:${i ? "walk" : "idle"}`, npc(rows, { x: "#5a5854", o: "#8a8680" })))
-  DRONE.forEach((rows, i) => actors.set(`hawk:${i ? "walk" : "idle"}`, npc(rows, { x: "#4a4038", o: "#6a3030" })))
+  COPTER_F.forEach((rows, i) => actors.set(`copter:${i ? "walk" : "idle"}`, npc(rows, { x: "#5a5854", o: "#8a8680" })))
+  HAWK_F.forEach((rows, i) => actors.set(`hawk:${i ? "walk" : "idle"}`, npc(rows, { x: "#4a4038", o: "#6a3030" })))
   actors.set("gunboat:idle", gunship())
   actors.set("gunboat:walk", gunship())
   actors.set("gunship:idle", strafeBird())
@@ -1370,7 +1789,7 @@ function boot() {
   actors.set("rocket:walk", rocketBird())
   actors.set("bomber:idle", bombBird())
   actors.set("bomber:walk", bombBird())
-  DRONE.forEach((rows, i) => actors.set(`mid:${i ? "walk" : "idle"}`, npc(rows, { x: "#3a4044", o: "#6e6e6e" })))
+  MID_F.forEach((rows, i) => actors.set(`mid:${i ? "walk" : "idle"}`, npc(rows, { x: "#3a4044", o: "#6e6e6e" })))
   WALKER.forEach((rows, i) => actors.set(`reach:${i ? "walk" : "idle"}`, npc(rows, { X: "#3a4844", x: "#24302c", o: "#5a6a64" })))
   WALKER.forEach((rows, i) => actors.set(`mast:${i ? "walk" : "idle"}`, npc(rows, { X: "#4a5858", x: "#2a3838", o: "#8aa0a0" })))
   WALKER.forEach((rows, i) => actors.set(`dray:${i ? "walk" : "idle"}`, npc(rows, { X: "#3a3834", x: "#22201c", o: "#6a6860" })))
@@ -1412,29 +1831,29 @@ function boot() {
   props.set("mine:0", paint(GEAR.mines[0], GEAR.mines[1]))
   vehicles.set("jeep", jeep())
   vehicles.set("apc", apc())
-  vehicles.set("plow", tank())
+  vehicles.set("plow", plow())
   vehicles.set("tank", tank())
   vehicles.set("bike", bike())
-  vehicles.set("buggy", jeep())
+  vehicles.set("buggy", buggy())
   vehicles.set("hover", hover())
   vehicles.set("mrap", mrap())
   vehicles.set("hex_scout", hex("scout"))
   vehicles.set("hex_line", hex("line"))
   vehicles.set("hex_siege", hex("siege"))
   vehicles.set("truck", truck())
-  vehicles.set("tech", jeep())
-  vehicles.set("suv", jeep())
-  vehicles.set("steed", bike())
-  vehicles.set("cart", jeep())
-  vehicles.set("mule", apc())
+  vehicles.set("tech", tech())
+  vehicles.set("suv", suv())
+  vehicles.set("steed", steed())
+  vehicles.set("cart", cart())
+  vehicles.set("mule", mule())
   vehicles.set("mlrs", mlrs())
-  vehicles.set("ifv", apc())
+  vehicles.set("ifv", ifv())
   vehicles.set("mbt", mbt())
   vehicles.set("ugv", ugv())
-  vehicles.set("tube", tank())
-  vehicles.set("drill", tank())
-  vehicles.set("pump", jeep())
-  vehicles.set("cutter", jeep())
+  vehicles.set("tube", tube())
+  vehicles.set("drill", drill())
+  vehicles.set("pump", pump())
+  vehicles.set("cutter", cutter())
   for (const id of Object.keys(GEAR)) actors.set(`gear:${id}`, paint(GEAR[id][0], GEAR[id][1]))
 }
 

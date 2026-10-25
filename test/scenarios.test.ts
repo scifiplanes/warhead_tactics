@@ -1164,6 +1164,17 @@ test("the lead deploys wearing deck gear", () => {
   expect(card("lsight").slot).toBe("optic")
 })
 
+test("deck guns and optics still outfit the Lead when a hull is also queued", () => {
+  for (let seed = 1; seed <= 24; seed++) {
+    const w = makeRun(seed, ["scope", "smg", "mlrs", "plate"])
+    const lead = w.bodies.find((b) => b.kind === STARTER)!
+    expect(lead.gears, `seed ${seed}`).toContain("scope")
+    expect(lead.gears, `seed ${seed}`).toContain("smg")
+    expect(lead.gears, `seed ${seed}`).toContain("plate")
+    expect(w.deckQueue, `seed ${seed}`).toEqual(["mlrs"])
+  }
+})
+
 test("a unit airdrops wearing deck gear", () => {
   const w = quiet()
   w.deckQueue = ["plate", "lsight", "medic"]
@@ -1262,11 +1273,12 @@ test("researching again raises the cost and adds a copy", () => {
   expect(stockOf(p, "aegis")).toBe(DECK_CAP)
 })
 
-test("wipe banks finds for research; extract unlocks them for loadout", () => {
+test("wipe banks finds for research; extract unlocks only the haul", () => {
   const profile = fresh()
   restart(profile)
   expect(profile.known).toEqual([STARTER])
   const finds = ["jeep", "tank", "mg", "plate", "bipod", "stim", "plating", "mines", "nitro"]
+  const haul = ["jeep", "mg", "plate"]
   const hidden = CARDS.filter((c) => c.deck && !profile.found.includes(c.id)).map((c) => c.id)
   const w = makeRun(1, [STARTER], { hidden, known: profile.known })
   for (const id of finds) {
@@ -1281,27 +1293,33 @@ test("wipe banks finds for research; extract unlocks them for loadout", () => {
     expect(profile.known).not.toContain(id)
     expect(stockOf(profile, id)).toBe(0)
   }
-  const unlocked = unlockExtracted(profile, w.found, w.found)
-  expect(unlocked).toEqual(finds)
-  for (const id of finds) {
+  const unlocked = unlockExtracted(profile, w.found, haul)
+  expect(unlocked).toEqual(haul)
+  for (const id of haul) {
     expect(profile.known).toContain(id)
     expect(stockOf(profile, id)).toBe(1)
     expect(profile.salvage[id]).toBe(1)
   }
+  for (const id of finds.filter((id) => !haul.includes(id))) {
+    expect(profile.known).not.toContain(id)
+    expect(stockOf(profile, id)).toBe(0)
+    expect(profile.salvage[id]).toBeUndefined()
+  }
   expect(deployCost(["jeep"], {}, profile.salvage)).toBe(0)
   expect(costLabel("jeep", 0, 0, 1)).toBe("RECOVERED")
   expect(deployCost(["jeep", "jeep"], {}, profile.salvage)).toBe(priceOf("jeep") * 2)
-  expect(unlockExtracted(profile, w.found, w.found)).toEqual([])
-  for (const id of finds) {
+  expect(unlockExtracted(profile, w.found, haul)).toEqual([])
+  for (const id of haul) {
     expect(profile.salvage[id]).toBe(2)
     expect(stockOf(profile, id)).toBe(2)
   }
   const left = fresh()
   unlockExtracted(left, ["sentry", "scope"], ["scope"])
-  expect(left.known).toContain("sentry")
+  expect(left.found).toContain("sentry")
+  expect(left.known).not.toContain("sentry")
   expect(left.salvage.sentry).toBeUndefined()
-  expect(stockOf(left, "sentry")).toBe(1)
-  expect(deployCost(["sentry"], {}, left.salvage)).toBe(priceOf("sentry"))
+  expect(stockOf(left, "sentry")).toBe(0)
+  expect(left.known).toContain("scope")
   expect(left.salvage.scope).toBe(1)
   expect(costLabel("scope", 0, 0, 1)).toBe("RECOVERED")
   const legacy = fresh()
@@ -1331,8 +1349,11 @@ test("abandoned sentry is not recovered on extract", () => {
   const p = fresh()
   unlockExtracted(p, w.found, haul)
   expect(p.salvage.plate).toBe(1)
+  expect(p.known).toContain("plate")
+  expect(p.found).toContain("sentry")
+  expect(p.known).not.toContain("sentry")
   expect(p.salvage.sentry).toBeUndefined()
-  expect(stockOf(p, "sentry")).toBe(1)
+  expect(stockOf(p, "sentry")).toBe(0)
 })
 
 test("attrition stacks on a card kept in the deck and cools when it sits out", () => {

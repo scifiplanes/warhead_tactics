@@ -65,10 +65,11 @@ Nearest-neighbor only. No bilinear, no AI upsample as final.
 |-------|-------------|--------|
 | Field buffer | CSS ÷3 (narrow) / ÷4 (wide); min ~160×120 | whole field pixel grid |
 | Camera zoom | base **4.5** (narrow buf) / **6** (wide); eases out with gap | blit is 1:1 — do not cut zoom to “fit” huge sprites |
-| Infantry / feral body | **16×13** idle/walk · **14×10** dep; canvas tight | dense coat clusters inside; no pad rows; widen ≤16 |
+| Infantry / feral body | **16×13** idle/walk · **14×10** dep; canvas tight | dense coat clusters inside; no pad rows; widen ≤16; goat/crow have own head mass |
+| Section / rust flyers | **8×6** family | drone / scoot / kite / flake / cluster distinct; copter / hawk / mid are section-only stamps |
 | Gun HOLD stamp | rifle x:9 y:7; pocket on coat; parts readable at 1:1 | stock / receiver / barrel / optic |
 | Named shell / hero still | **64×48** max | promo, load, extract portrait only |
-| Hull (light → MBT) | **14×8** (bike) · **18×11** (jeep) · **24×14** (apc) · **24×16** (tank) · **26×18** (mbt) · **28×12** (truck) · **22×16** (mrap) · **16×10** (ugv) · **22×18** (hex) · **24×14** (mlrs) | real shipped sizes; not padded doubles |
+| Hull (light → MBT) | **14×8** (bike) · **16×10** (steed/cart) · **18×10–12** (tube/pump) · **18×11** (jeep/buggy/cutter) · **20×11–12** (tech/suv/mule) · **22×14–16** (drill/mrap) · **24×14** (apc/ifv/mlrs) · **24×16** (tank/plow) · **26×18** (mbt) · **28×12** (truck) · **16×10** (ugv) · **22×18** (hex) | one stamp per deck hull; not padded doubles |
 | Prop / ruin chunk | **18×16** (tree) · **26×12** (wire) · **22×14** (wreck) · **14×14** (post) · **22×12** (teeth) · **24×16** (ruin) · **10×6** (stump) · **12×6** (rubble) | top+wall faces; quieter than units |
 | Ground tile / mud | **128×128** seamless | wet, rut, ash; quieter than figures |
 | World hex cell | **64×64** per ground | open / timber / yard / bog / teeth; clipped to hex; light fog on unvisited |

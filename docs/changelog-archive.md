@@ -2,6 +2,12 @@
 
 Moved from `docs/changelog.md` when that file outgrows its cap.
 
+- **2026-10-25 Fix:** walk gait from stamp swap only — no ±1px leg-layer slide (read as slapstick on 13px figures); subtler walk stride. `src/view/anim.ts` `src/view/sprites.ts`
+- **2026-10-25 Fix:** stop NPC part offsets — flesh draws solid (no head/coat/leg split); drop soft trail/gait on stamped-leg bipeds/walkers; soldier hip rows no longer mix coat+leg keys. `src/view/sprites.ts` `src/view/anim.ts`
+- **2026-10-25 Fix:** restore original buffer footprints vs HEAD (soldier 16×13, jeep 18×11, tank 24×16, …) so field sizes/distances match; densify only inside those grids; zoom 4.5/6. `src/view/sprites.ts` `docs/design/art.md`
+- **2026-10-24 Feat:** pickup snaps harder — gold flash, named bracket, gold toast; kit strip pulses on change. `src/sim/world.ts` `src/view/draw.ts` `src/main.ts` `index.html`
+- **2026-10-24 Feat:** gear crates show their mark and a name plate (inbound too); the HUD kit strip and roster show fitted loadout. `src/view/draw.ts` `src/view/sprites.ts` `src/main.ts` `index.html`
+- **2026-10-24 Feat:** Tracker body kit paints blank brackets (and edge pins) on every living hostile while the wearer lives, through night and smoke. `src/content/catalog.ts` `src/sim/world.ts` `src/view/draw.ts` `src/view/sprites.ts`
 - **2026-10-23 Fix:** tracers and night beams leave the rotated gun tip (deploy / aim-up), not a flat body offset. `src/view/sprites.ts` `src/view/draw.ts` `src/sim/world.ts`
 - **2026-10-23 Feat:** soft modules on every foot hostile, hover sway, drawn brace tip, hit/stun impulse, soft+biped together. `src/view/anim.ts` `docs/design/anim.md`
 - **2026-10-23 Feat:** stretch plant loop for biped feet and soft tips, hips→chest→head lag, idle breath; hostiles and infantry. `src/view/anim.ts` `docs/design/anim.md`

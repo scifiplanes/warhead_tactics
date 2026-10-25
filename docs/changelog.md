@@ -2,6 +2,9 @@
 
 Newest first. Older → `docs/changelog-archive.md`.
 
+- **2026-10-25 Fix:** deck guns and optics outfit the Lead at step-off even when a hull is also queued; touch HUD keeps the roster. `src/sim/world.ts` `index.html`
+- **2026-10-25 Fix:** extract unlocks only the craft haul as RECOVERED; finds merely seen or left behind stay research-gated. `src/meta/profile.ts`
+- **2026-10-25 Design:** each deck hull gets its own stamp — drill, plow, tube, pump, cutter, buggy, tech, SUV, steed, cart, mule, IFV — and crowhead/goathead plus section air leave the shared drone/jeep/tank borrows. `src/view/sprites.ts` `docs/design/art.md`
 - **2026-10-25 Fix:** free extract stock reads RECOVERED; only finds hauled onto the craft count (abandoned sentry no longer free). `src/meta/profile.ts` `src/sim/world.ts` `src/main.ts`
 - **2026-10-25 Fix:** pre-salvage extract unlocks get one free RECOVERED deploy on load (deck was still showing CR). `src/meta/profile.ts` `src/main.ts`
 - **2026-10-25 Feat:** extracted finds deploy free as RECOVERED (extra copies still paid); gear pickups fit the nearest squad body. `src/meta/profile.ts` `src/main.ts` `src/sim/world.ts`
@@ -35,9 +38,3 @@ Newest first. Older → `docs/changelog-archive.md`.
 - **2026-10-25 Feat:** main menu WORLD tab reads the campaign field graph; start LZ marked with gold ring. `index.html` `src/main.ts`
 - **2026-10-25 Feat:** campaign field graph with multi-path travel, residue eco (feral/rust/bio/oxide/scar), and light loot/sleeper cache; deck airdrops stay run-scoped. `src/meta/worldmap.ts` `src/meta/profile.ts` `src/sim/world.ts` `src/view/draw.ts`
 - **2026-10-25 Fix:** remove hover/billow/trail soft chains that drew detached tips beside NPC stamps; clamp remaining soft draw to 6px of body. `src/view/anim.ts` `src/view/draw.ts`
-- **2026-10-25 Fix:** walk gait from stamp swap only — no ±1px leg-layer slide (read as slapstick on 13px figures); subtler walk stride. `src/view/anim.ts` `src/view/sprites.ts`
-- **2026-10-25 Fix:** stop NPC part offsets — flesh draws solid (no head/coat/leg split); drop soft trail/gait on stamped-leg bipeds/walkers; soldier hip rows no longer mix coat+leg keys. `src/view/sprites.ts` `src/view/anim.ts`
-- **2026-10-25 Fix:** restore original buffer footprints vs HEAD (soldier 16×13, jeep 18×11, tank 24×16, …) so field sizes/distances match; densify only inside those grids; zoom 4.5/6. `src/view/sprites.ts` `docs/design/art.md`
-- **2026-10-24 Feat:** pickup snaps harder — gold flash, named bracket, gold toast; kit strip pulses on change. `src/sim/world.ts` `src/view/draw.ts` `src/main.ts` `index.html`
-- **2026-10-24 Feat:** gear crates show their mark and a name plate (inbound too); the HUD kit strip and roster show fitted loadout. `src/view/draw.ts` `src/view/sprites.ts` `src/main.ts` `index.html`
-- **2026-10-24 Feat:** Tracker body kit paints blank brackets (and edge pins) on every living hostile while the wearer lives, through night and smoke. `src/content/catalog.ts` `src/sim/world.ts` `src/view/draw.ts` `src/view/sprites.ts`

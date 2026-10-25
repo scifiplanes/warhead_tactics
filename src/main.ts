@@ -821,7 +821,12 @@ function kitIds(gears: string[]) {
   const bits: string[] = []
   const body: string[] = []
   for (const id of gears) {
-    const c = card(id)
+    let c: ReturnType<typeof card>
+    try {
+      c = card(id)
+    } catch {
+      continue
+    }
     if (c.gun) {
       if (c.hand === "secondary") guns.push(id)
       else guns.unshift(id)
@@ -857,7 +862,13 @@ function paintHud(w: World) {
     tag.className = "tag"
     tag.textContent = "KIT"
     kitEl.append(tag)
-    for (const id of kitIds(lead.gears)) kitEl.append(preview(id, 16))
+    for (const id of kitIds(lead.gears)) {
+      try {
+        kitEl.append(preview(id, 16))
+      } catch {
+        /* skip bad stamp */
+      }
+    }
     if (lead.ammoMax > 0) {
       const mag = document.createElement("span")
       mag.className = "tag"
@@ -880,7 +891,15 @@ function paintHud(w: World) {
     st.textContent = b.boarded !== null ? "IN" : b.vehicle ? "HULL" : "UP"
     const kit = document.createElement("span")
     kit.className = "kit"
-    if (!b.vehicle) for (const id of kitIds(b.gears).slice(0, 4)) kit.append(preview(id, 16))
+    if (!b.vehicle) {
+      for (const id of kitIds(b.gears).slice(0, 4)) {
+        try {
+          kit.append(preview(id, 16))
+        } catch {
+          /* skip bad stamp */
+        }
+      }
+    }
     rosterEl.append(name, bar, st, kit)
   }
 
