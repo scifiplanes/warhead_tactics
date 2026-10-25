@@ -33,6 +33,8 @@ export type CardDef = {
   armorAdd?: number
   rangeMul?: number
   rateMul?: number
+  /** Extra rounds in the fitted mag. */
+  magAdd?: number
   speedMul?: number
   hpMul?: number
   deployMul?: number
@@ -64,6 +66,14 @@ export type Gun = {
   cooldown: number
   mobileFire: boolean
   deployNeed: number
+  /** Medium guns: fire while unset/moving with accuracy (and optional RoF) penalties. */
+  hip?: boolean
+  /** Cooldown mul while hip-firing (semi-autos). */
+  hipRate?: number
+  /** Shots before auto-reload. Omit / 0 = no magazine (blades, bows). */
+  mag?: number
+  /** Seconds to refill an empty mag. */
+  reload?: number
   lob?: boolean
   aoe?: number
   pierce?: number
@@ -78,6 +88,8 @@ export type HostileDef = {
   aoe?: number
   pack?: number
   air?: boolean
+  /** Stun seconds applied on a hit (early rust tasers). */
+  shock?: number
 }
 
 const foot = (p: Partial<Stats>): Stats => ({
@@ -180,7 +192,7 @@ export const CARDS: CardDef[] = [
     desc: "Fits a soldier. Sets, then shreds.",
     fits: "unit",
     hand: "primary",
-    gun: { range: 11, damage: 4, cooldown: 0.12, mobileFire: false, deployNeed: 1.1 },
+    gun: { range: 11, damage: 4, cooldown: 0.12, mobileFire: false, deployNeed: 1.1, mag: 28, reload: 2.6 },
   },
   {
     id: "sniper",
@@ -190,7 +202,7 @@ export const CARDS: CardDef[] = [
     desc: "Fits a soldier. Long shots pierce.",
     fits: "unit",
     hand: "primary",
-    gun: { range: 18, damage: 22, cooldown: 1.2, mobileFire: false, deployNeed: 0.9, pierce: 3 },
+    gun: { range: 18, damage: 22, cooldown: 1.2, mobileFire: false, deployNeed: 0.9, pierce: 3, mag: 4, reload: 2.2 },
   },
   {
     id: "gren",
@@ -200,7 +212,7 @@ export const CARDS: CardDef[] = [
     desc: "Fits a soldier. Lobs while moving.",
     fits: "unit",
     hand: "primary",
-    gun: { range: 10, damage: 16, cooldown: 1.4, mobileFire: true, deployNeed: 0, lob: true, aoe: 2.4 },
+    gun: { range: 10, damage: 16, cooldown: 1.4, mobileFire: true, deployNeed: 0, lob: true, aoe: 2.4, mag: 1, reload: 2.4 },
   },
   {
     id: "medic",
@@ -219,7 +231,7 @@ export const CARDS: CardDef[] = [
     desc: "Fits a soldier. Sets the tube. Long blasts.",
     fits: "unit",
     hand: "primary",
-    gun: { range: 22, damage: 26, cooldown: 2, mobileFire: false, deployNeed: 1.6, lob: true, aoe: 3.2 },
+    gun: { range: 22, damage: 26, cooldown: 2, mobileFire: false, deployNeed: 1.6, lob: true, aoe: 3.2, mag: 1, reload: 2.8 },
   },
   {
     id: "forge",
@@ -312,7 +324,7 @@ export const CARDS: CardDef[] = [
     kind: "vehicle",
     deck: true,
     desc: "Three seats. Fast mounted gun.",
-    stats: hull({ hp: 90, speed: 16, range: 9, damage: 4, cooldown: 0.16, seats: 3, armor: 0.05, radius: 1 }),
+    stats: hull({ hp: 90, speed: 16, range: 11, damage: 4, cooldown: 0.16, seats: 3, armor: 0.05, radius: 1 }),
   },
   {
     id: "apc",
@@ -320,7 +332,7 @@ export const CARDS: CardDef[] = [
     kind: "vehicle",
     deck: true,
     desc: "Four seats. Gun fires on the move.",
-    stats: hull({}),
+    stats: hull({ range: 12, damage: 6 }),
   },
   {
     id: "plow",
@@ -368,7 +380,7 @@ export const CARDS: CardDef[] = [
     kind: "vehicle",
     deck: true,
     desc: "Two seats. Fastest hull.",
-    stats: hull({ hp: 70, speed: 22, range: 8, damage: 4, cooldown: 0.2, seats: 2, armor: 0.05, radius: 0.85 }),
+    stats: hull({ hp: 70, speed: 22, range: 10, damage: 4, cooldown: 0.2, seats: 2, armor: 0.05, radius: 0.85 }),
   },
   {
     id: "buggy",
@@ -376,7 +388,7 @@ export const CARDS: CardDef[] = [
     kind: "vehicle",
     deck: true,
     desc: "Three seats. Fast open hull.",
-    stats: hull({ hp: 100, speed: 18, range: 9, damage: 5, cooldown: 0.22, seats: 3, armor: 0.1, radius: 1.05 }),
+    stats: hull({ hp: 100, speed: 18, range: 10, damage: 5, cooldown: 0.22, seats: 3, armor: 0.1, radius: 1.05 }),
   },
   {
     id: "hover",
@@ -384,7 +396,7 @@ export const CARDS: CardDef[] = [
     kind: "vehicle",
     deck: true,
     desc: "One seat. Ignores mud and rain.",
-    stats: hull({ hp: 80, speed: 20, range: 8, damage: 4, cooldown: 0.24, seats: 1, armor: 0.06, radius: 0.8 }),
+    stats: hull({ hp: 80, speed: 20, range: 10, damage: 4, cooldown: 0.24, seats: 1, armor: 0.06, radius: 0.8 }),
   },
   {
     id: "mrap",
@@ -392,7 +404,7 @@ export const CARDS: CardDef[] = [
     kind: "vehicle",
     deck: true,
     desc: "Six seats. Thick wagon.",
-    stats: hull({ hp: 200, speed: 12, range: 10, damage: 6, cooldown: 0.35, seats: 6, armor: 0.45, radius: 1.25 }),
+    stats: hull({ hp: 200, speed: 12, range: 12, damage: 6, cooldown: 0.35, seats: 6, armor: 0.45, radius: 1.25 }),
   },
   {
     id: "hex_scout",
@@ -403,7 +415,7 @@ export const CARDS: CardDef[] = [
     stats: hull({
       hp: 160,
       speed: 8,
-      range: 11,
+      range: 13,
       damage: 8,
       cooldown: 0.6,
       seats: 1,
@@ -435,15 +447,13 @@ export const CARDS: CardDef[] = [
     name: "HEX SIEGE",
     kind: "vehicle",
     deck: true,
-    desc: "Heavy walker. Long gun. Breaks cover.",
+    desc: "Heavy walker. Long gun on the move. Breaks cover.",
     stats: hull({
       hp: 300,
       speed: 5,
       range: 18,
       damage: 22,
       cooldown: 1.7,
-      mobileFire: false,
-      deployNeed: 1.2,
       seats: 2,
       heavy: true,
       armor: 0.5,
@@ -455,10 +465,10 @@ export const CARDS: CardDef[] = [
     name: "RIFLE",
     kind: "gear",
     deck: true,
-    desc: "Primary. Sets, then fires.",
+    desc: "Primary. Sets for clean fire; hip-fires on the move with worse miss and a slower semi.",
     fits: "unit",
     hand: "primary",
-    gun: { range: 9, damage: 7, cooldown: 0.45, mobileFire: false, deployNeed: 0.8 },
+    gun: { range: 9, damage: 7, cooldown: 0.45, mobileFire: false, deployNeed: 0.8, hip: true, hipRate: 1.7, mag: 8, reload: 1.6 },
   },
   {
     id: "plate",
@@ -536,15 +546,16 @@ export const CARDS: CardDef[] = [
     rangeMul: 1.08,
     rateMul: 0.96,
   }),
-  attach({ id: "stick", name: "STICK", desc: "Mag on the gun. Fire rate +4%.", slot: "mag", rateMul: 0.96 }),
-  attach({ id: "drum", name: "DRUM", desc: "Mag on the gun. Fire rate +40%.", slot: "mag", rateMul: 0.72 }),
-  attach({ id: "box", name: "BOX", desc: "Mag on the gun. Fire rate +22%.", slot: "mag", rateMul: 0.82 }),
+  attach({ id: "stick", name: "STICK", desc: "Mag on the gun. +2 rounds. Fire rate +4%.", slot: "mag", magAdd: 2, rateMul: 0.96 }),
+  attach({ id: "drum", name: "DRUM", desc: "Mag on the gun. +12 rounds. Fire rate +18%.", slot: "mag", magAdd: 12, rateMul: 0.85 }),
+  attach({ id: "box", name: "BOX", desc: "Mag on the gun. +6 rounds. Fire rate +10%.", slot: "mag", magAdd: 6, rateMul: 0.91 }),
   attach({
     id: "belt",
     name: "BELT",
-    desc: "Mag on the gun. Fire rate +54%. Set-up +15%.",
+    desc: "Mag on the gun. +18 rounds. Fire rate +28%. Set-up +15%.",
     slot: "mag",
-    rateMul: 0.65,
+    magAdd: 18,
+    rateMul: 0.78,
     deployMul: 1.15,
   }),
   attach({
@@ -804,70 +815,70 @@ export const CARDS: CardDef[] = [
     name: "PISTOL",
     desc: "Secondary. Light sidearm. Fires on the move.",
     hand: "secondary",
-    gun: { range: 7, damage: 5, cooldown: 0.35, mobileFire: true, deployNeed: 0 },
+    gun: { range: 7, damage: 5, cooldown: 0.35, mobileFire: true, deployNeed: 0, mag: 10, reload: 1.3 },
   }),
   kit({
     id: "revolver",
     name: "REVOLVER",
     desc: "Secondary. Harder hit. Fires on the move.",
     hand: "secondary",
-    gun: { range: 8, damage: 8, cooldown: 0.55, mobileFire: true, deployNeed: 0 },
+    gun: { range: 8, damage: 8, cooldown: 0.55, mobileFire: true, deployNeed: 0, mag: 6, reload: 1.5 },
   }),
   kit({
     id: "autopistol",
     name: "AUTO",
     desc: "Secondary. Spray sidearm. Fires on the move.",
     hand: "secondary",
-    gun: { range: 6, damage: 3, cooldown: 0.12, mobileFire: true, deployNeed: 0 },
+    gun: { range: 6, damage: 3, cooldown: 0.12, mobileFire: true, deployNeed: 0, mag: 16, reload: 1.5 },
   }),
   kit({
     id: "magnum",
     name: "MAGNUM",
     desc: "Secondary. Heavy punch. Fires on the move.",
     hand: "secondary",
-    gun: { range: 7, damage: 12, cooldown: 0.7, mobileFire: true, deployNeed: 0 },
+    gun: { range: 7, damage: 12, cooldown: 0.7, mobileFire: true, deployNeed: 0, mag: 6, reload: 1.7 },
   }),
   kit({
     id: "minismg",
     name: "MINI-SMG",
     desc: "Secondary. Compact spray. Fires on the move.",
     hand: "secondary",
-    gun: { range: 8, damage: 3, cooldown: 0.1, mobileFire: true, deployNeed: 0 },
+    gun: { range: 8, damage: 3, cooldown: 0.1, mobileFire: true, deployNeed: 0, mag: 18, reload: 1.6 },
   }),
   kit({
     id: "laserpistol",
     name: "LASER PISTOL",
     desc: "Secondary. Fast accurate sidearm. Fires on the move.",
     hand: "secondary",
-    gun: { range: 9, damage: 6, cooldown: 0.22, mobileFire: true, deployNeed: 0 },
+    gun: { range: 9, damage: 6, cooldown: 0.22, mobileFire: true, deployNeed: 0, mag: 12, reload: 1.4 },
   }),
   kit({
     id: "smg",
     name: "SMG",
     desc: "Primary. Mid spray. Fires on the move.",
     hand: "primary",
-    gun: { range: 10, damage: 4, cooldown: 0.14, mobileFire: true, deployNeed: 0 },
+    gun: { range: 10, damage: 4, cooldown: 0.14, mobileFire: true, deployNeed: 0, mag: 20, reload: 1.8 },
   }),
   kit({
     id: "shotgun",
     name: "SHOTGUN",
-    desc: "Primary. Close punch. Sets, then fires.",
+    desc: "Primary. Close punch. Sets for clean fire; hip-fires on the move with worse miss and slower pumps.",
     hand: "primary",
-    gun: { range: 5, damage: 18, cooldown: 0.9, mobileFire: false, deployNeed: 0.7 },
+    gun: { range: 5, damage: 18, cooldown: 0.9, mobileFire: false, deployNeed: 0.7, hip: true, hipRate: 1.55, mag: 5, reload: 2 },
   }),
   kit({
     id: "autoshotgun",
     name: "AUTOSHOT",
     desc: "Primary. Close spray. Fires on the move.",
     hand: "primary",
-    gun: { range: 6, damage: 10, cooldown: 0.35, mobileFire: true, deployNeed: 0 },
+    gun: { range: 6, damage: 10, cooldown: 0.35, mobileFire: true, deployNeed: 0, mag: 8, reload: 2.1 },
   }),
   kit({
     id: "railgun",
     name: "RAIL",
     desc: "Primary. Long pierce. Sets, then fires.",
     hand: "primary",
-    gun: { range: 20, damage: 28, cooldown: 1.4, mobileFire: false, deployNeed: 1.2, pierce: 2 },
+    gun: { range: 20, damage: 28, cooldown: 1.4, mobileFire: false, deployNeed: 1.2, pierce: 2, mag: 3, reload: 2.4 },
   }),
   kit({
     id: "at",
@@ -888,7 +899,7 @@ export const CARDS: CardDef[] = [
   }),
   kit({ id: "ewar", name: "EWAR", desc: "Jams Rust for a few seconds.", fits: "section", ability: "ewar", cd: 22 }),
   rig("truck", "TRUCK", "A big hauler. Lands with a light gun.", hull({ hp: 170, speed: 14, range: 0, damage: 0, seats: 6, armor: 0.15, radius: 1.3 })),
-  rig("tech", "TECHNICAL", "A fast pintle.", hull({ hp: 120, speed: 17, range: 11, damage: 6, cooldown: 0.35, seats: 3, armor: 0.12, radius: 1.1 })),
+  rig("tech", "TECHNICAL", "A fast pintle.", hull({ hp: 120, speed: 17, range: 13, damage: 6, cooldown: 0.35, seats: 3, armor: 0.12, radius: 1.1 })),
   rig("suv", "SUV", "A fast hull. Lands with a light gun.", hull({ hp: 130, speed: 18, range: 0, damage: 0, seats: 4, armor: 0.2, radius: 1.1 })),
   rig("steed", "STEED", "A one-seat robohorse. Lands with a light gun.", hull({ hp: 80, speed: 20, range: 0, damage: 0, seats: 1, armor: 0.12, radius: 0.9 })),
   rig("cart", "CART", "A slow cargo robot. Lands with a light gun.", hull({ hp: 90, speed: 7, range: 0, damage: 0, seats: 1, armor: 0.1, radius: 0.95 })),
@@ -897,7 +908,7 @@ export const CARDS: CardDef[] = [
     "gunboat",
     "GUNBOAT",
     "Unmanned assault copter. Leashed to the Lead.",
-    hull({ hp: 70, speed: 8, range: 13, damage: 8, cooldown: 0.35, seats: 0, armor: 0.2, radius: 0.55 }),
+    hull({ hp: 70, speed: 8, range: 14, damage: 8, cooldown: 0.35, seats: 0, armor: 0.2, radius: 0.55 }),
     { follow: true, air: true },
   ),
   {
@@ -953,18 +964,18 @@ export const CARDS: CardDef[] = [
     hull({ hp: 180, speed: 8, range: 16, damage: 16, cooldown: 1.8, mobileFire: false, deployNeed: 1.2, seats: 2, armor: 0.22, radius: 1.3 }),
     { lob: true, aoe: 3.4 },
   ),
-  rig("ifv", "IFV", "An armored troop hull with a gun.", hull({ hp: 240, speed: 9, range: 12, damage: 9, cooldown: 0.45, seats: 6, armor: 0.48, radius: 1.3 })),
+  rig("ifv", "IFV", "An armored troop hull with a gun.", hull({ hp: 240, speed: 9, range: 16, damage: 10, cooldown: 0.45, seats: 6, armor: 0.48, radius: 1.3 })),
   rig(
     "mbt",
     "MBT",
     "Heavier than the tank. Breaks cover.",
-    hull({ hp: 340, speed: 5, range: 16, damage: 20, cooldown: 1.5, mobileFire: false, deployNeed: 1.1, seats: 3, heavy: true, armor: 0.58, radius: 1.4 }),
+    hull({ hp: 340, speed: 5, range: 22, damage: 22, cooldown: 1.5, mobileFire: false, deployNeed: 1.1, seats: 3, heavy: true, armor: 0.58, radius: 1.4 }),
   ),
   rig(
     "ugv",
     "UGV",
     "Unmanned. Follows the Lead and shoots.",
-    hull({ hp: 160, speed: 11, range: 12, damage: 7, cooldown: 0.4, seats: 0, armor: 0.3, radius: 1.05 }),
+    hull({ hp: 160, speed: 11, range: 14, damage: 7, cooldown: 0.4, seats: 0, armor: 0.3, radius: 1.05 }),
     { follow: true },
   ),
   rig(
@@ -1100,10 +1111,12 @@ export const HOSTILES: HostileDef[] = [
     id: "drone",
     name: "DRONE",
     side: "rust",
+    // Shock must stay under cooldown — a longer jolt permanently locks section fire.
+    shock: 0.28,
     stats: foot({
       hp: 16,
       speed: 7.4,
-      range: 7,
+      range: 1.85,
       damage: 4,
       cooldown: 0.7,
       mobileFire: true,
@@ -1130,12 +1143,13 @@ export const HOSTILES: HostileDef[] = [
     id: "scoot",
     name: "SCOOT",
     side: "rust",
+    shock: 0.24,
     stats: foot({
       hp: 24,
       speed: 8,
-      range: 7,
+      range: 1.9,
       damage: 4,
-      cooldown: 0.38,
+      cooldown: 0.55,
       mobileFire: true,
       deployNeed: 0,
       radius: 0.48,
@@ -1211,12 +1225,13 @@ export const HOSTILES: HostileDef[] = [
     name: "KITE",
     side: "rust",
     air: true,
+    shock: 0.26,
     stats: foot({
       hp: 16,
       speed: 7.6,
-      range: 10,
-      damage: 5,
-      cooldown: 0.55,
+      range: 2,
+      damage: 4,
+      cooldown: 0.65,
       mobileFire: true,
       deployNeed: 0,
       radius: 0.36,

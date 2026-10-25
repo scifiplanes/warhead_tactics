@@ -77,7 +77,7 @@ Nearest-neighbor only. No bilinear, no AI upsample as final.
 | Toast / plate type | VGA bitmap font; ≥12 CSS px | gold / ink / muted only |
 | Touch target | ≥44 CSS px hit | icon may be smaller inside |
 | VFX cell | 1–3 px cores; soft bloom ≤2 px | contour of sprite stays hard |
-| Muzzle flash | 1–7 px along aim; shape per gun | rifle cross · SMG dot · shotgun cone · sniper spike · rail bolt · MG bloom · lob puff; also a radial night light; blades/bows none |
+| Muzzle flash | 1–7 px along aim; shape per gun | rifle cross · SMG dot · shotgun cone · sniper spike · rail bolt · MG bloom · lob puff · rust taser zig-zag · rust oxide dot (later guns); also a radial night light; blades/bows none |
 | Loading / promo key | same palette + foreshortening; 1–2 focal figures | no new style |
 
 World footprint: keep shipped buffer sizes (table above). Densify with clusters inside the grid — never grow canvases to fake detail.

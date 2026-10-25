@@ -62,6 +62,16 @@ export type Body = {
   cooldown: number
   cool: number
   sideCool: number
+  /** Primary magazine rounds left (0 + ammoMax 0 = unlimited). */
+  ammo: number
+  ammoMax: number
+  /** Primary reload time left. */
+  reloadT: number
+  reloadNeed: number
+  sideAmmo: number
+  sideAmmoMax: number
+  sideReload: number
+  sideReloadNeed: number
   mobileFire: boolean
   deployNeed: number
   deploy: number
@@ -100,6 +110,8 @@ export type Body = {
   air: boolean
   nvg: boolean
   stun: number
+  /** Stun seconds this body applies on a landed hit (rust tasers). */
+  shock: number
   sortieT: number
   parts: Limb[]
   name: string
@@ -254,6 +266,8 @@ export type World = {
   nextDrop: number
   nextHorde: number
   bursts: Burst[]
+  /** Player powder pops this tick (hip and set) — drained for shot audio. */
+  pops: number
   rng: () => number
   nextId: number
   boardCursor: number
@@ -472,8 +486,8 @@ const RECIPE: Record<string, { body: [string, number][]; early: [string, number]
       ["drone", 20],
     ],
     early: [
-      ["drone", 65],
-      ["walker", 35],
+      ["drone", 70],
+      ["scoot", 30],
     ],
   },
   air: {
@@ -577,6 +591,13 @@ export function takeBursts(w: World): Burst[] {
   return out
 }
 
+/** Drain player shot pops for muffled brass audio (includes hip misses). */
+export function takePops(w: World) {
+  const n = w.pops
+  w.pops = 0
+  return n
+}
+
 export function spawnBody(w: World, spec: Spawn): Body {
   const row = CARDS.find((c) => c.id === spec.kind)
   const host = HOSTILES.find((h) => h.id === spec.kind)
@@ -612,6 +633,14 @@ export function spawnBody(w: World, spec: Spawn): Body {
     cooldown: spec.cooldown ?? base.cooldown,
     cool: 0,
     sideCool: 0,
+    ammo: 0,
+    ammoMax: 0,
+    reloadT: 0,
+    reloadNeed: 0,
+    sideAmmo: 0,
+    sideAmmoMax: 0,
+    sideReload: 0,
+    sideReloadNeed: 0,
     mobileFire: base.mobileFire,
     deployNeed: base.deployNeed,
     deploy: 0,
@@ -650,6 +679,7 @@ export function spawnBody(w: World, spec: Spawn): Body {
     air: row?.air ?? host?.air ?? false,
     nvg: row?.nvg ?? false,
     stun: 0,
+    shock: host?.shock ?? 0,
     sortieT: 0,
     parts: limbs(base.vehicle, row?.air ?? host?.air ?? false),
     name: "",
@@ -772,6 +802,7 @@ function blank(seed: number): World {
     nextDrop: 6,
     nextHorde: 2,
     bursts: [],
+    pops: 0,
     rng: mulberry32(seed || 1),
     nextId: 1,
     boardCursor: 0,
@@ -1595,7 +1626,7 @@ function pickup(w: World) {
     }
     if (d.kind === "gear") {
       if (!touch(w, d.x, d.y)) continue
-      if (!equip(w, d.cardId, d.cost)) continue
+      if (!equip(w, d.cardId, d.cost, d.x, d.y)) continue
       d.taken = true
       w.dropsTaken++
       burst(w, d.x, d.y, "flash")
@@ -1742,9 +1773,75 @@ type Wield = {
   cooldown: number
   mobileFire: boolean
   deployNeed: number
+  hip: boolean
+  hipRate: number
+  mag: number
+  reload: number
   lob: boolean
   aoe: number
   pierce: number
+}
+
+function magOf(b: Body, id: string): { size: number; reload: number } {
+  const g = card(id).gun
+  if (!g) return { size: 0, reload: 0 }
+  let size = g.mag ?? 0
+  let reload = g.reload ?? 0
+  if (size <= 0) return { size: 0, reload: 0 }
+  if (handOf(id) === "primary") {
+    for (const have of attachIds(b)) {
+      const add = card(have).magAdd
+      if (add) size += add
+    }
+  }
+  return { size, reload: reload > 0 ? reload : 1.5 }
+}
+
+function syncAmmo(b: Body) {
+  const pri = primaryId(b)
+  if (pri) {
+    const m = magOf(b, pri)
+    const was = b.ammoMax
+    b.ammoMax = m.size
+    b.reloadNeed = m.reload
+    if (m.size <= 0) {
+      b.ammo = 0
+      b.reloadT = 0
+    } else if (was <= 0) {
+      b.ammo = m.size
+      b.reloadT = 0
+    } else {
+      b.ammo = Math.min(b.ammo, m.size)
+      if (b.ammo > 0) b.reloadT = 0
+    }
+  } else {
+    b.ammoMax = 0
+    b.ammo = 0
+    b.reloadT = 0
+    b.reloadNeed = 0
+  }
+  const sec = secondaryId(b)
+  if (sec) {
+    const m = magOf(b, sec)
+    const was = b.sideAmmoMax
+    b.sideAmmoMax = m.size
+    b.sideReloadNeed = m.reload
+    if (m.size <= 0) {
+      b.sideAmmo = 0
+      b.sideReload = 0
+    } else if (was <= 0) {
+      b.sideAmmo = m.size
+      b.sideReload = 0
+    } else {
+      b.sideAmmo = Math.min(b.sideAmmo, m.size)
+      if (b.sideAmmo > 0) b.sideReload = 0
+    }
+  } else {
+    b.sideAmmoMax = 0
+    b.sideAmmo = 0
+    b.sideReload = 0
+    b.sideReloadNeed = 0
+  }
 }
 
 function wieldOf(b: Body, id: string): Wield {
@@ -1754,6 +1851,8 @@ function wieldOf(b: Body, id: string): Wield {
   let cooldown = g.cooldown
   let mobileFire = g.mobileFire
   let deployNeed = g.deployNeed
+  const hip = !!g.hip
+  const hipRate = g.hipRate ?? 1
   let lob = !!g.lob
   let aoe = g.aoe ?? 0
   let pierce = g.pierce ?? 0
@@ -1766,13 +1865,67 @@ function wieldOf(b: Body, id: string): Wield {
       if (fit.pierce) pierce += fit.pierce
     }
   }
-  return { range, damage, cooldown, mobileFire, deployNeed, lob, aoe, pierce }
+  const mag = magOf(b, id)
+  return {
+    range,
+    damage,
+    cooldown,
+    mobileFire,
+    deployNeed,
+    hip,
+    hipRate,
+    mag: mag.size,
+    reload: mag.reload,
+    lob,
+    aoe,
+    pierce,
+  }
 }
 
 function wieldReady(b: Body, w: Wield, side: boolean) {
   if ((side ? b.sideCool : b.cool) > 0) return false
+  const max = side ? b.sideAmmoMax : b.ammoMax
+  if (max > 0 && (side ? b.sideAmmo : b.ammo) <= 0) return false
   if (w.mobileFire || w.deployNeed <= 0) return true
+  // Medium guns may hip-fire only while moving; standing still waits out the set.
+  if (w.hip && b.moved) return true
   return b.deploy >= w.deployNeed
+}
+
+function tickReload(w: World, b: Body, side: boolean, id: string | undefined, dt: number) {
+  if (!id) return
+  const max = side ? b.sideAmmoMax : b.ammoMax
+  if (max <= 0) return
+  let ammo = side ? b.sideAmmo : b.ammo
+  let left = side ? b.sideReload : b.reloadT
+  const need = side ? b.sideReloadNeed : b.reloadNeed
+  if (ammo > 0) {
+    if (side) b.sideReload = 0
+    else b.reloadT = 0
+    return
+  }
+  if (left <= 0) {
+    left = need > 0 ? need : magOf(b, id).reload
+    if (b.side === "player") tag(w, b.x, b.y, "RELOAD", "gear")
+  }
+  left -= dt
+  if (left <= 0) {
+    ammo = max
+    left = 0
+  }
+  if (side) {
+    b.sideAmmo = ammo
+    b.sideReload = left
+  } else {
+    b.ammo = ammo
+    b.reloadT = left
+  }
+}
+
+/** Moving with a medium gun — hip-fire penalties apply (standing set stays clean). */
+function hipFire(b: Body, w: Wield) {
+  if (!w.hip || w.mobileFire || w.deployNeed <= 0) return false
+  return b.moved
 }
 
 function wieldReach(b: Body, tgt: Body, w: Wield, sightMul: number) {
@@ -1818,6 +1971,7 @@ function reapplyGun(b: Body) {
   b.lob = w.lob
   b.aoe = w.aoe
   b.pierce = w.pierce
+  syncAmmo(b)
 }
 
 function fitGun(w: World, b: Body, id: string, cost = 0) {
@@ -1855,21 +2009,32 @@ function fitGun(w: World, b: Body, id: string, cost = 0) {
   reapplyGun(b)
 }
 
-function equip(w: World, id: string, cost = 0): boolean {
+function nearestBody(list: Body[], x: number, y: number): Body | null {
+  let best: Body | null = null
+  let bestD = Infinity
+  for (const b of list) {
+    const d = (b.x - x) ** 2 + (b.y - y) ** 2
+    if (d >= bestD) continue
+    bestD = d
+    best = b
+  }
+  return best
+}
+
+function equip(w: World, id: string, cost = 0, x = 0, y = 0): boolean {
   const c = card(id)
   if (c.gun) {
     const hand = handOf(id)
-    const bare = w.bodies.find(
-      (b) => soldier(b) && !(hand === "primary" ? primaryId(b) : secondaryId(b)),
-    )
-    const target = bare ?? w.bodies.find((b) => soldier(b))
+    const soldiers = w.bodies.filter((b) => soldier(b))
+    const bare = soldiers.filter((b) => !(hand === "primary" ? primaryId(b) : secondaryId(b)))
+    const target = nearestBody(bare.length ? bare : soldiers, x, y)
     if (!target) return false
     fitGun(w, target, id, cost)
     toast(w, `${c.name} fitted`, "pick")
     return true
   }
   if (c.slot) {
-    const target = pickAttach(w, c)
+    const target = pickAttach(w, c, x, y)
     if (!target) return false
     const prior = target.gears.find((have) => card(have).slot === c.slot)
     if (prior) shedAttach(w, target, prior)
@@ -1879,7 +2044,7 @@ function equip(w: World, id: string, cost = 0): boolean {
     toast(w, `${c.name} fitted`, "pick")
     return true
   }
-  const target = pickFit(w, c)
+  const target = pickFit(w, c, x, y)
   if (c.fits && c.fits !== "section") {
     if (!target) return false
     target.gears.push(id)
@@ -1917,11 +2082,8 @@ function horde(w: World, dt: number) {
   w.nextHorde -= dt
   if (w.nextHorde > 0) return
   const n = nodeOf(w)
-  const mass = n.feral + n.rust
-  if (mass < 1.2 && n.scar >= 5) {
-    w.nextHorde = HORDE_EVERY * 1.8
-    return
-  }
+  // Scar only slows packs (hordeScale); never hard-skip or a cleared start LZ
+  // stays empty forever after a few extracts.
   w.nextHorde = (HORDE_EVERY * hordeScale(n)) / (1 + w.depth * 0.28)
   let alive = 0
   for (const b of w.bodies) if (b.alive && b.side !== "player") alive++
@@ -2062,6 +2224,7 @@ function ai(w: World, dt: number) {
 function combat(w: World, dt: number) {
   for (const b of w.bodies) {
     if (!b.alive || b.boarded !== null || b.stun > 0) continue
+    if (casHull(b) && b.sortieT <= 0) continue
     if (w.reveals.some((r) => r.bodyId === b.id)) continue
     b.cool -= dt
     b.sideCool -= dt
@@ -2100,6 +2263,10 @@ function combat(w: World, dt: number) {
       cooldown: b.cooldown,
       mobileFire: b.mobileFire,
       deployNeed: b.deployNeed,
+      hip: false,
+      hipRate: 1,
+      mag: 0,
+      reload: 0,
       lob: b.lob,
       aoe: b.aoe,
       pierce: b.pierce,
@@ -2115,6 +2282,8 @@ function combatHands(w: World, b: Body, dt: number, pri: string | undefined, sec
     if (b.moved) b.deploy = 0
     else b.deploy = Math.min(deploySrc.deployNeed, b.deploy + dt)
   }
+  tickReload(w, b, false, pri, dt)
+  tickReload(w, b, true, sec, dt)
   // damage<=0 silences fire and lamp (tests and disarms), without stripping fitted gear.
   if (b.damage <= 0 || !canFire(b)) return
   const blind = sun(w) < NIGHT && w.vision === "off"
@@ -2139,18 +2308,41 @@ function combatHands(w: World, b: Body, dt: number, pri: string | undefined, sec
   fireWeapon(w, b, tgt, pick.w, pick.side, lit, pick.id)
 }
 
-/** Point facing and heading at the fire target (gun art and beams follow hdg). */
+/** Point facing and heading at the fire target (gun art and beams follow hdg). Hulls keep chassis hdg — turret art tracks separately. */
 function aimAt(b: Body, tgt: { x: number; y: number }) {
+  if (b.vehicle) return
   b.hdg = Math.atan2(tgt.y - b.y, tgt.x - b.x)
   if (Math.abs(tgt.x - b.x) > 0.02) b.face = tgt.x < b.x ? -1 : 1
 }
 
 function fireWeapon(w: World, b: Body, tgt: Body, stats: Wield, side: boolean, lit: boolean, gun?: string) {
-  if (side) b.sideCool = stats.cooldown
-  else b.cool = stats.cooldown
+  const hip = hipFire(b, stats)
+  const cool = stats.cooldown * (hip ? stats.hipRate : 1)
+  if (side) b.sideCool = cool
+  else b.cool = cool
   b.fired++
+  if (stats.mag > 0) {
+    if (side) {
+      b.sideAmmo = Math.max(0, b.sideAmmo - 1)
+      if (b.sideAmmo <= 0) {
+        b.sideReload = stats.reload
+        b.sideReloadNeed = stats.reload
+        if (b.side === "player") tag(w, b.x, b.y, "RELOAD", "gear")
+      }
+    } else {
+      b.ammo = Math.max(0, b.ammo - 1)
+      if (b.ammo <= 0) {
+        b.reloadT = stats.reload
+        b.reloadNeed = stats.reload
+        if (b.side === "player") tag(w, b.x, b.y, "RELOAD", "gear")
+      }
+    }
+  }
   aimAt(b, tgt)
-  if (b.side === "player") tag(w, b.x, b.y, "FIRE", "fire")
+  if (b.side === "player") {
+    tag(w, b.x, b.y, hip ? "HIP" : "FIRE", "fire")
+    w.pops++
+  }
   let mul = b.gears.includes("filter") ? 1 : WEATHER[w.weather].fire
   if (casHull(b) && jtacLive(w)) mul *= 1.25
   if (casHull(b) && w.airMark && w.airMark.t > 0) {
@@ -2170,6 +2362,7 @@ function fireWeapon(w: World, b: Body, tgt: Body, stats: Wield, side: boolean, l
     mul *= 1.2
     w.airMark = null
   }
+  aimAt(b, tgt)
   const prev = { range: b.range, damage: b.damage, pierce: b.pierce, lob: b.lob, aoe: b.aoe }
   b.range = stats.range
   b.damage = stats.damage
@@ -2177,8 +2370,27 @@ function fireWeapon(w: World, b: Body, tgt: Body, stats: Wield, side: boolean, l
   b.lob = stats.lob
   b.aoe = stats.aoe
   const wield = gun ?? gunId(b) ?? (b.vehicle || b.air ? "mount" : b.kind)
-  const [mx, my] = muzzleOf(b, wield)
-  pushFlash(w, mx, my, b.hdg, wield, b.id)
+  const shotAim = Math.atan2(tgt.y - b.y, tgt.x - b.x)
+  const [mx, my] = b.vehicle || b.air ? muzzleAlong(b, shotAim) : muzzleOf(b, wield)
+  pushFlash(w, mx, my, b.vehicle || b.air ? shotAim : b.hdg, wield, b.id)
+  const dist = Math.hypot(tgt.x - mx, tgt.y - my)
+  // Hip: heavy miss that grows with range (≈40% close → ≈65% at max).
+  if (hip && !stats.lob && stats.range > 2) {
+    const far = Math.min(1, dist / Math.max(0.5, stats.range))
+    if (w.rng() < 0.4 + 0.25 * far) {
+      const scatter = (w.rng() - 0.5) * (0.7 + 0.5 * far)
+      const ang = b.hdg + scatter
+      const reach = dist * (0.7 + w.rng() * 0.45)
+      pushShot(w, mx, my, mx + Math.cos(ang) * reach, my + Math.sin(ang) * reach, b.air ? 1.4 : 0, b.id)
+      b.range = prev.range
+      b.damage = prev.damage
+      b.pierce = prev.pierce
+      b.lob = prev.lob
+      b.aoe = prev.aoe
+      reapplyGun(b)
+      return
+    }
+  }
   if (b.side !== "player" && stats.range > 2) {
     const dx = tgt.x - mx
     const dy = tgt.y - my
@@ -2213,7 +2425,9 @@ function fireWeapon(w: World, b: Body, tgt: Body, stats: Wield, side: boolean, l
       pushShot(w, mx, my, tgt.x, tgt.y, b.air ? 1.4 : 0, b.id)
       let hit = stats.damage * mul
       if (tgt.vehicle && stats.range <= 2) hit *= meleeHull(tgt.armor)
-      hurt(w, tgt, hit, tint, b)
+      hurt(w, tgt, hit, b.shock > 0 ? "flash" : tint, b)
+      // Taser hitch only — never refresh an active stun into a longer lock.
+      if (b.shock > 0 && tgt.stun <= 0) tgt.stun = b.shock
       if (stats.pierce > 0) pierce(w, b, tgt, tint)
     }
   }
@@ -2255,6 +2469,13 @@ function squadAt(w: World) {
   return { x: here?.x ?? w.ax, y: here?.y ?? w.ay }
 }
 
+/** Any living section body in the ring — holds keep going if the Lead dies but allies remain. */
+function zoneHeld(w: World, x: number, y: number, r: number) {
+  return w.bodies.some(
+    (b) => b.alive && b.inSection && b.side === "player" && Math.hypot(b.x - x, b.y - y) <= r + b.radius,
+  )
+}
+
 function inLz(w: World, b: Body) {
   return Math.hypot(b.x - w.flareX, b.y - w.flareY) <= FLARE_R + b.radius
 }
@@ -2271,6 +2492,23 @@ function hauled(w: World) {
     for (const id of b.gears) n += b.gearPay[id] ?? 0
   }
   return n
+}
+
+/** Deck card ids physically on the craft (fitted gear, boarded hulls/units, unspent toolbar). */
+export function recoveredCards(w: World): string[] {
+  const ids = new Set<string>()
+  for (const b of w.bodies) {
+    if (!b.out) continue
+    if (b.kind !== "sentry_gun") {
+      const row = CARDS.find((c) => c.id === b.kind)
+      if (row?.deck) ids.add(b.kind)
+    }
+    for (const g of b.gears) ids.add(g)
+  }
+  for (const s of w.toolbar) {
+    if (s.charges > 0) ids.add(s.id)
+  }
+  return [...ids]
 }
 
 function liftOut(w: World, b: Body) {
@@ -2295,8 +2533,7 @@ function flare(w: World, _cmd: Commands, dt: number) {
       toast(w, "LZ marked", "unit")
     }
   }
-  const at = squadAt(w)
-  const inside = w.lzOn && Math.hypot(at.x - w.flareX, at.y - w.flareY) <= FLARE_R
+  const inside = w.lzOn && zoneHeld(w, w.flareX, w.flareY, FLARE_R)
   if (w.lzOn && !w.flareOn) {
     w.flareArm = inside ? w.flareArm + dt : 0
     if (w.flareArm >= FLARE_ARM) {
@@ -2370,8 +2607,7 @@ function path(w: World, dt: number) {
   }
   // Flare/craft or standing in the LZ is extract — never path-travel from there.
   if (!w.pathOn || w.craftOn || w.flareOn) return
-  const at = squadAt(w)
-  if (w.lzOn && Math.hypot(at.x - w.flareX, at.y - w.flareY) <= FLARE_R) {
+  if (w.lzOn && zoneHeld(w, w.flareX, w.flareY, FLARE_R)) {
     for (const p of w.paths) p.hold = 0
     syncPathMirror(w)
     return
@@ -2382,7 +2618,7 @@ function path(w: World, dt: number) {
       p.hold = 0
       continue
     }
-    const inside = Math.hypot(at.x - p.x, at.y - p.y) <= FLARE_R
+    const inside = zoneHeld(w, p.x, p.y, FLARE_R)
     p.hold = inside ? p.hold + dt : 0
     if (inside) active = p
   }
@@ -2422,7 +2658,19 @@ function leaveNode(w: World) {
 }
 
 function plantSection(w: World) {
+  // Crewed hulls travel with their riders even if the hull flag drifted off-section
+  // (otherwise riders stay boarded to a missing id and vanish from the field).
+  for (const b of w.bodies) {
+    if (!b.alive || b.side !== "player" || !b.inSection || b.boarded === null) continue
+    const ride = w.bodies.find((v) => v.id === b.boarded && v.alive && v.vehicle)
+    if (ride) ride.inSection = true
+    else b.boarded = null
+  }
   w.bodies = w.bodies.filter((b) => b.alive && b.inSection && b.side === "player")
+  for (const b of w.bodies) {
+    if (b.boarded === null) continue
+    if (!w.bodies.some((v) => v.id === b.boarded && v.alive)) b.boarded = null
+  }
   const boss = w.bodies.find((b) => b.id === w.commander)
   const hull = boss && boss.boarded !== null ? w.bodies.find((b) => b.id === boss.boarded) : null
   const core = hull ?? boss
@@ -2441,7 +2689,10 @@ function plantSection(w: World) {
   for (const b of w.bodies) {
     if (b.boarded === null) continue
     const ride = w.bodies.find((v) => v.id === b.boarded)
-    if (!ride) continue
+    if (!ride) {
+      b.boarded = null
+      continue
+    }
     b.x = ride.x
     b.y = ride.y
   }
@@ -2538,9 +2789,8 @@ function ability(w: World, cmd: Commands) {
     }
     spendFamily(w, slot)
     const lead = commandHull(w, commandUnit(w)) ?? commandUnit(w)
-    const x = (lead?.x ?? w.ax) + 2.2
-    const y = lead?.y ?? w.ay
-    spawnBody(w, { kind: id, x, y, inSection: true })
+    const at = casIngress(w, lead, id)
+    spawnBody(w, { kind: id, x: at.x, y: at.y, inSection: true })
     toast(w, `${card(id).name} inbound`, "gear")
     return
   }
@@ -2712,18 +2962,25 @@ function ending(w: World) {
   w.credits = 0
 }
 
-function pickFit(w: World, c: ReturnType<typeof card>): Body | null {
+function pickFit(w: World, c: ReturnType<typeof card>, x = 0, y = 0): Body | null {
   if (!c.fits || c.fits === "section") return null
   const list = w.bodies.filter(
     (b) => b.alive && b.inSection && b.side === "player" && !b.gears.includes(c.id),
   )
-  if (c.fits === "unit") return list.find((b) => !b.vehicle) ?? null
-  if (c.fits === "vehicle") return list.find((b) => b.vehicle) ?? null
-  if (c.fits === "deploy") return list.find((b) => !b.vehicle && b.deployNeed > 0) ?? null
-  return list.find((b) => !b.vehicle) ?? list[0] ?? null
+  const pool =
+    c.fits === "unit"
+      ? list.filter((b) => !b.vehicle)
+      : c.fits === "vehicle"
+        ? list.filter((b) => b.vehicle)
+        : c.fits === "deploy"
+          ? list.filter((b) => !b.vehicle && b.deployNeed > 0)
+          : list.filter((b) => !b.vehicle).length
+            ? list.filter((b) => !b.vehicle)
+            : list
+  return nearestBody(pool, x, y)
 }
 
-function pickAttach(w: World, c: ReturnType<typeof card>): Body | null {
+function pickAttach(w: World, c: ReturnType<typeof card>, x = 0, y = 0): Body | null {
   if (!c.slot) return null
   const list = w.bodies.filter((b) => soldier(b) && canTakeAttach(b))
   const needDeploy = c.fits === "deploy"
@@ -2735,11 +2992,11 @@ function pickAttach(w: World, c: ReturnType<typeof card>): Body | null {
     }
     return true
   })
-  const empty = ok.find((b) => !b.gears.some((have) => card(have).slot === c.slot))
-  if (empty) return empty
+  const empty = ok.filter((b) => !b.gears.some((have) => card(have).slot === c.slot))
+  if (empty.length) return nearestBody(empty, x, y)
   const lead = ok.find((b) => b.id === w.commander)
   if (lead) return lead
-  return ok[0] ?? null
+  return nearestBody(ok, x, y)
 }
 
 function spend(slot: Slot) {
@@ -2760,12 +3017,40 @@ function casHull(b: Body) {
   return b.kind === "gunship" || b.kind === "rocket" || b.kind === "bomber"
 }
 
+/** Off-screen approach point on the current orbit ray (not beside the Lead). */
+function casIngress(w: World, lead: Body | null, kind: string) {
+  const cx = lead?.x ?? w.ax
+  const cy = lead?.y ?? w.ay
+  const ring = airRing(kind)
+  const ang = w.t * ring.spin + 0.4
+  const reach = ring.r + 34
+  return {
+    x: clamp(cx + Math.cos(ang) * reach, -MAP + 1, MAP - 1),
+    y: clamp(cy + Math.sin(ang) * reach, -MAP + 1, MAP - 1),
+  }
+}
+
+/** Sortie clock hits 0 → outbound flight (negative sortieT), then the body is culled. */
 function leaveSortie(w: World, b: Body) {
-  if (!b.alive) return
-  b.alive = false
-  b.hp = 0
-  b.sortieT = 0
+  if (!b.alive || !casHull(b)) return
+  // Already outbound (depart clock running).
+  if (b.sortieT <= -1) return
+  b.sortieT = -2.8
   toast(w, `${card(b.kind).name} away`, "veh")
+}
+
+function departAir(w: World, b: Body, dt: number) {
+  const dx0 = b.x - w.ax
+  const dy0 = b.y - w.ay
+  const d = Math.hypot(dx0, dy0) || 1
+  const pace = b.speed * 1.7 * dt
+  b.x = clamp(b.x + (dx0 / d) * pace, -MAP, MAP)
+  b.y = clamp(b.y + (dy0 / d) * pace, -MAP, MAP)
+  b.moved = pace > 0.02
+  b.vel = b.speed
+  b.hdg = Math.atan2(dy0, dx0)
+  const fx = Math.cos(b.hdg)
+  if (Math.abs(fx) > 0.02) b.face = fx < 0 ? -1 : 1
 }
 
 function crowd(w: World, reach: number): Body | null {
@@ -2895,6 +3180,7 @@ function tails(w: World, dt: number) {
   for (const b of w.bodies) {
     if (!b.alive || !b.inSection || !b.follow || b.boarded !== null || b.stun > 0) continue
     if (b.air) {
+      if (casHull(b) && b.sortieT <= 0) continue
       orbitAir(w, b, lead, dt)
       continue
     }
@@ -2974,8 +3260,7 @@ function stash(w: World, dt: number) {
     toast(w, "Stash marked", "loot")
   }
   if (!w.stashOn || w.craftOn) return
-  const at = squadAt(w)
-  const inside = Math.hypot(at.x - w.stashX, at.y - w.stashY) <= STASH_R
+  const inside = zoneHeld(w, w.stashX, w.stashY, STASH_R)
   w.stashHold = inside ? w.stashHold + dt : 0
   if (w.stashHold < STASH_HOLD) return
   w.stashOn = false
@@ -3018,10 +3303,13 @@ function inBeam(w: World, x: number, y: number) {
   return inFlashLight(w, x, y)
 }
 
-/** Muzzle flash is a brief omnidirectional light at night. */
+/** Player muzzle flash is a brief omnidirectional combat light (hostile flashes stay visual-only). */
 function inFlashLight(w: World, x: number, y: number) {
   for (const f of w.flashes) {
-    if (f.light <= 0) continue
+    if (f.light <= 0 || f.from == null) continue
+    const src = w.bodies.find((b) => b.id === f.from)
+    // Match beams: only the section's powder lights day-range sight.
+    if (!src || src.side !== "player") continue
     const r = f.light * (0.5 + 0.5 * (f.life / f.max))
     if (Math.hypot(x - f.x, y - f.y) <= r) return true
   }
@@ -3155,6 +3443,7 @@ function heals(w: World, dt: number) {
 
 function ages(w: World, dt: number) {
   for (const s of w.toolbar) if (s.cd > 0) s.cd = Math.max(0, s.cd - dt)
+  const gone: number[] = []
   for (const b of w.bodies) {
     if (b.boost > 0) b.boost = Math.max(0, b.boost - dt)
     if (b.stun > 0) b.stun = Math.max(0, b.stun - dt)
@@ -3162,10 +3451,25 @@ function ages(w: World, dt: number) {
       b.life -= dt
       if (b.life <= 0) kill(w, b)
     }
-    if (b.alive && b.sortieT > 0) {
-      b.sortieT -= dt
-      if (b.sortieT <= 0) leaveSortie(w, b)
+    if (b.alive && casHull(b)) {
+      if (b.sortieT > 0) {
+        b.sortieT -= dt
+        if (b.sortieT <= 0) leaveSortie(w, b)
+      } else if (b.sortieT < 0) {
+        b.sortieT = Math.min(0, b.sortieT + dt)
+        departAir(w, b, dt)
+        if (b.sortieT >= 0) {
+          b.alive = false
+          b.hp = 0
+          b.inSection = false
+          gone.push(b.id)
+        }
+      }
     }
+  }
+  if (gone.length) {
+    const drop = new Set(gone)
+    w.bodies = w.bodies.filter((o) => !drop.has(o.id))
   }
   if (w.airMark) {
     w.airMark.t -= dt
@@ -3213,6 +3517,20 @@ function muzzleOf(b: Body, gun?: string | null): [number, number] {
   const r =
     b.vehicle || b.air ? Math.max(0.5, b.radius * 0.85) : gunMuzzle(gun ?? gunId(b))
   return [b.x + Math.cos(b.hdg) * r, b.y + Math.sin(b.hdg) * r]
+}
+
+/** Hull/air muzzle along a shot bearing (chassis hdg stays with drive). */
+function muzzleAlong(b: Body, aim: number): [number, number] {
+  // Long-gun hulls need more reach than the collision radius.
+  const r =
+    b.kind === "mbt"
+      ? 2.4
+      : b.kind === "tank" || b.kind === "hex_siege"
+        ? 1.9
+        : b.kind === "ifv" || b.kind === "hex_line" || b.kind === "mlrs"
+          ? 1.6
+          : Math.max(0.55, b.radius * 1.15)
+  return [b.x + Math.cos(aim) * r, b.y + Math.sin(aim) * r]
 }
 
 function pierce(w: World, b: Body, first: Body, tint: Burst["tint"]) {
@@ -3460,13 +3778,13 @@ function labels(w: World) {
   w.groupLabel = w.gap > 0 ? "TIGHT" : seat ? "BOARD" : "HELD"
   w.spreadLabel = aboard ? "EXIT" : w.gap < GAP_MAX ? "LOOSE" : "WIDE"
   const at = squadAt(w)
-  const inLz = w.lzOn && Math.hypot(at.x - w.flareX, at.y - w.flareY) <= FLARE_R
+  const inLz = w.lzOn && zoneHeld(w, w.flareX, w.flareY, FLARE_R)
   let pathHold = 0
   let inPath = false
   if (w.pathOn) {
     for (const p of w.paths) {
       if (!p.open) continue
-      if (Math.hypot(at.x - p.x, at.y - p.y) <= FLARE_R) {
+      if (zoneHeld(w, p.x, p.y, FLARE_R)) {
         inPath = true
         pathHold = p.hold
         break
@@ -3482,7 +3800,7 @@ function labels(w: World) {
   else if (w.pathOn)
     w.banner = w.paths.filter((p) => p.open).length > 1 ? "REACH AN EXIT" : "REACH EXIT"
   else if (w.lzOn) w.banner = "REACH LZ"
-  else if (w.stashOn && Math.hypot(at.x - w.stashX, at.y - w.stashY) <= STASH_R)
+  else if (w.stashOn && zoneHeld(w, w.stashX, w.stashY, STASH_R))
     w.banner = `STASH ${Math.max(0, Math.ceil(STASH_HOLD - w.stashHold))}s`
   else {
     const hull = w.sleepers.find((s) => !s.awake && Math.hypot(at.x - s.x, at.y - s.y) <= PICKUP + 1.5)

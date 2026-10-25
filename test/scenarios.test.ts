@@ -12,10 +12,23 @@ import {
   researchCost,
   rollHero,
 } from "../src/content/catalog"
-import { applyWear, bankFinds, deployCost, fresh, research, restart, settleHeroes, stockOf } from "../src/meta/profile"
+import {
+  applyWear,
+  bankFinds,
+  bootSalvage,
+  costLabel,
+  deployCost,
+  fresh,
+  research,
+  restart,
+  settleHeroes,
+  stockOf,
+  unlockExtracted,
+} from "../src/meta/profile"
 import { flashOf } from "../src/content/muzzle"
 import { ecoStep, foldHostiles, genMap, pressureOf } from "../src/meta/worldmap"
 import { policy } from "../src/bot/policy"
+import { footAnim } from "../src/view/anim"
 import {
   CRAFT_WAIT,
   DAY,
@@ -33,6 +46,7 @@ import {
   offerHero,
   offerHoldout,
   placeDrop,
+  recoveredCards,
   spawnBody,
   step,
   trackerTargets,
@@ -268,8 +282,11 @@ test("fast drive leaves a body behind", () => {
   console.log("GATE leave-behind ok")
 })
 
-test("stand-to-fire stays silent until deploy completes", () => {
+test("rifle hip-fires on the move with RoF and miss penalties, then sets clean", () => {
+  expect(card("rifle").gun?.hip).toBe(true)
+  expect(card("rifle").gun?.hipRate).toBeGreaterThan(1.4)
   const w = quiet()
+  w.props = []
   const cell = w.bodies.find((b) => b.kind === "cell_rifle")!
   const foe = spawnBody(w, {
     kind: "shambler",
@@ -277,21 +294,48 @@ test("stand-to-fire stays silent until deploy completes", () => {
     y: 0,
     speed: 0,
     damage: 0,
-    hp: 500,
+    hp: 5000,
   })
+  // Deployed standing: clean hits land.
   go(w, IDLE, 2)
-  const fired = cell.fired
-  expect(fired).toBeGreaterThan(0)
-  const hp = foe.hp
-  go(w, { ...IDLE, moveY: 1 }, 0.35)
-  expect(cell.fired).toBe(fired)
-  expect(cell.deploy).toBe(0)
-  expect(foe.hp).toBe(hp)
-  go(w, IDLE, 0.35)
-  expect(cell.fired).toBe(fired)
-  go(w, IDLE, 1.2)
-  expect(cell.fired).toBeGreaterThan(fired)
-  console.log("GATE deploy-fire ok")
+  expect(cell.deploy).toBeGreaterThanOrEqual(cell.deployNeed)
+  cell.cool = 0
+  const setHp = foe.hp
+  const setFired = cell.fired
+  step(w, IDLE, 1 / 30)
+  expect(cell.fired).toBe(setFired + 1)
+  expect(foe.hp).toBe(setHp - 7)
+  // On the move: hip-fires with stretched semi cool; most rounds miss.
+  let hipCool = 0
+  let hipShots = 0
+  let hipHits = 0
+  for (let i = 0; i < 40; i++) {
+    cell.cool = 0
+    cell.deploy = 0
+    cell.ammo = cell.ammoMax
+    cell.reloadT = 0
+    cell.x = 0
+    cell.y = 0
+    foe.x = 3
+    foe.y = 0
+    foe.hp = 5000
+    foe.maxHp = 5000
+    foe.alive = true
+    const before = cell.fired
+    const hp = foe.hp
+    step(w, { ...IDLE, moveX: 1 }, 1 / 30)
+    if (cell.fired > before) {
+      hipShots++
+      hipCool = cell.cool
+      if (foe.hp < hp) hipHits++
+    }
+  }
+  expect(hipShots).toBeGreaterThan(20)
+  expect(hipCool).toBeGreaterThan(card("rifle").gun!.cooldown * 1.4)
+  expect(hipHits).toBeLessThan(hipShots)
+  expect(w.tags.some((t) => t.text === "HIP")).toBe(true)
+  expect(w.pops).toBeGreaterThan(0)
+  console.log("GATE hip-fire ok")
 })
 
 test("a bite reaches a hull skin and a zero-hp hull dies", () => {
@@ -490,6 +534,76 @@ test("holding the path opens a harder field", () => {
   expect(w.bodies.some((b) => b.id === foe.id)).toBe(false)
 })
 
+test("exit hold keeps progress when the Lead dies but an ally stays", () => {
+  const w = quiet()
+  const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
+  const ally = spawnBody(w, { kind: "aegis", x: 0, y: 0, inSection: true })
+  const dest = w.paths[0]?.to ?? 1
+  w.pathOn = true
+  w.lzOn = false
+  w.flareOn = false
+  w.craftOn = false
+  w.gap = 0
+  w.paths = [{ x: 0, y: 0, hold: 0, to: dest, open: true }]
+  w.pathX = 0
+  w.pathY = 0
+  const pin = () => {
+    lead.x = 0
+    lead.y = 0
+    ally.x = 0
+    ally.y = 0
+    w.ax = 0
+    w.ay = 0
+  }
+  pin()
+  for (let i = 0; i < Math.ceil(PATH_HOLD * 0.5 * 30); i++) {
+    pin()
+    step(w, IDLE, 1 / 30)
+  }
+  expect(w.paths[0].hold).toBeGreaterThan(PATH_HOLD * 0.4)
+  const held = w.paths[0].hold
+  lead.hp = 0
+  pin()
+  step(w, IDLE, 1 / 30)
+  expect(lead.alive).toBe(false)
+  expect(ally.alive).toBe(true)
+  for (let i = 0; i < 10; i++) {
+    ally.x = 0
+    ally.y = 0
+    w.ax = 0
+    w.ay = 0
+    step(w, IDLE, 1 / 30)
+  }
+  expect(w.paths[0].hold).toBeGreaterThan(held)
+  console.log("GATE zone-hold ok")
+})
+
+test("boarded riders pull their hull across a path travel", () => {
+  expect(card("mbt").stats?.range).toBeGreaterThan(card("tank").stats?.range ?? 0)
+  const w = quiet()
+  const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
+  const buddy = spawnBody(w, { kind: "aegis", x: 0, y: 0, inSection: true })
+  const hull = spawnBody(w, { kind: "mbt", x: 0, y: 0, inSection: false })
+  lead.boarded = hull.id
+  buddy.boarded = hull.id
+  const dest = w.paths[0]?.to ?? 1
+  w.pathOn = true
+  w.lzOn = false
+  w.flareOn = false
+  w.craftOn = false
+  w.paths = [{ x: 0, y: 0, hold: 0, to: dest, open: true }]
+  w.pathX = 0
+  w.pathY = 0
+  go(w, IDLE, PATH_HOLD + 0.2)
+  expect(w.depth).toBe(1)
+  const ride = w.bodies.find((b) => b.kind === "mbt")
+  expect(ride?.alive).toBe(true)
+  expect(ride?.inSection).toBe(true)
+  expect(w.bodies.find((b) => b.id === lead.id)?.boarded).toBe(ride!.id)
+  expect(w.bodies.find((b) => b.id === buddy.id)?.boarded).toBe(ride!.id)
+  console.log("GATE travel-board ok")
+})
+
 test("holding the LZ does not path-travel even if an exit sits on it", () => {
   const w = quiet()
   const dest = w.paths[0]?.to ?? w.map.nodes.find((n) => n.id !== w.nodeId)?.id ?? 1
@@ -587,7 +701,7 @@ test("a rust gun misses a body that steps off the shot", () => {
   const cell = w.bodies.find((b) => b.kind === "cell_rifle")!
   cell.x = 30
   cell.y = 30
-  spawnBody(w, { kind: "scoot", x: 0, y: 0, speed: 0, damage: 8, cooldown: 10 })
+  spawnBody(w, { kind: "roller", x: 0, y: 0, speed: 0, damage: 8, cooldown: 10 })
   const dog = spawnBody(w, { kind: "doghead", x: 6, y: 0, speed: 0, damage: 0, hp: 40 })
   step(w, IDLE, 1 / 30)
   expect(w.bolts.length).toBe(1)
@@ -595,6 +709,63 @@ test("a rust gun misses a body that steps off the shot", () => {
   go(w, IDLE, 1.3)
   expect(dog.hp).toBe(40)
   expect(w.bolts.length).toBe(0)
+})
+
+test("rifle auto-reloads when the mag runs dry", () => {
+  expect(card("rifle").gun?.mag).toBe(8)
+  expect(card("rifle").gun?.reload).toBeGreaterThan(1)
+  expect(card("drum").magAdd).toBeGreaterThan(0)
+  const w = quiet()
+  w.props = []
+  const cell = w.bodies.find((b) => b.kind === "cell_rifle")!
+  expect(cell.ammoMax).toBe(8)
+  expect(cell.ammo).toBe(8)
+  const foe = spawnBody(w, { kind: "shambler", x: 3, y: 0, speed: 0, damage: 0, hp: 5000 })
+  cell.deploy = cell.deployNeed
+  cell.ammo = 1
+  cell.cool = 0
+  step(w, IDLE, 1 / 30)
+  expect(cell.ammo).toBe(0)
+  expect(cell.reloadT).toBeGreaterThan(0)
+  expect(w.tags.some((t) => t.text === "RELOAD")).toBe(true)
+  expect(footAnim(cell, 1 / 30, cell.hdg).mode).toBe("reload")
+  const fired = cell.fired
+  cell.cool = 0
+  step(w, IDLE, 1 / 30)
+  expect(cell.fired).toBe(fired)
+  foe.x = 40
+  go(w, IDLE, card("rifle").gun!.reload! + 0.05)
+  expect(cell.ammo).toBe(cell.ammoMax)
+  expect(cell.reloadT).toBe(0)
+  expect(footAnim(cell, 1 / 30, cell.hdg).mode).not.toBe("reload")
+  foe.x = 3
+  cell.cool = 0
+  step(w, IDLE, 1 / 30)
+  expect(cell.fired).toBeGreaterThan(fired)
+  console.log("GATE reload ok")
+})
+
+test("early rust tasers stun at short range instead of bolting", () => {
+  expect(hostile("drone").shock).toBeGreaterThan(0)
+  expect(hostile("drone").shock!).toBeLessThan(hostile("drone").stats.cooldown)
+  expect(hostile("scoot").stats.range).toBeLessThanOrEqual(2)
+  expect(hostile("kite").stats.range).toBeLessThanOrEqual(2)
+  expect(hostile("walker").stats.range).toBeGreaterThan(2)
+  const w = quiet()
+  const cell = w.bodies.find((b) => b.kind === "cell_rifle")!
+  cell.damage = 0
+  const drone = spawnBody(w, { kind: "drone", x: 1.2, y: 0, speed: 0 })
+  expect(drone.shock).toBeGreaterThan(0)
+  step(w, IDLE, 1 / 30)
+  expect(w.bolts.length).toBe(0)
+  expect(drone.fired).toBeGreaterThan(0)
+  expect(cell.stun).toBeGreaterThan(0)
+  const stunned = cell.stun
+  // A second zap while already stunned must not refresh into a longer lock.
+  drone.cool = 0
+  step(w, IDLE, 1 / 30)
+  expect(cell.stun).toBeLessThanOrEqual(stunned)
+  console.log("GATE rust-taser ok")
 })
 
 test("three sides damage each other", () => {
@@ -1091,46 +1262,77 @@ test("researching again raises the cost and adds a copy", () => {
   expect(stockOf(p, "aegis")).toBe(DECK_CAP)
 })
 
-test("extract banks finds as researchable, not buyable", () => {
+test("wipe banks finds for research; extract unlocks them for loadout", () => {
   const profile = fresh()
   restart(profile)
-  expect(profile.found).not.toBe(profile.known)
   expect(profile.known).toEqual([STARTER])
   const finds = ["jeep", "tank", "mg", "plate", "bipod", "stim", "plating", "mines", "nitro"]
   const hidden = CARDS.filter((c) => c.deck && !profile.found.includes(c.id)).map((c) => c.id)
   const w = makeRun(1, [STARTER], { hidden, known: profile.known })
-  expect(w.found).not.toBe(profile.known)
-  expect(w.found).toEqual([])
-  expect(w.unlocked).toEqual([STARTER])
-  expect(w.unlocked).not.toBe(profile.known)
   for (const id of finds) {
     placeDrop(w, id, 0, 0)
     go(w, IDLE, 0.5)
   }
   for (const id of finds) expect(w.found).toContain(id)
-  expect(profile.known).toEqual([STARTER])
-  const added = bankFinds(profile, w.found)
-  expect(added).toEqual(finds)
-  expect(bankFinds(profile, w.found)).toEqual([])
+  const wiped = bankFinds(profile, w.found)
+  expect(wiped).toEqual(finds)
   for (const id of finds) {
     expect(profile.found).toContain(id)
     expect(profile.known).not.toContain(id)
     expect(stockOf(profile, id)).toBe(0)
   }
-  const shop = CARDS.filter((c) => c.deck && profile.known.includes(c.id)).map((c) => c.id)
-  const researchable = CARDS.filter(
-    (c) => c.deck && profile.found.includes(c.id) && (profile.depth[c.id] ?? 0) < DECK_CAP,
-  ).map((c) => c.id)
-  expect(shop).toEqual([STARTER])
+  const unlocked = unlockExtracted(profile, w.found, w.found)
+  expect(unlocked).toEqual(finds)
   for (const id of finds) {
-    expect(shop).not.toContain(id)
-    expect(researchable).toContain(id)
+    expect(profile.known).toContain(id)
+    expect(stockOf(profile, id)).toBe(1)
+    expect(profile.salvage[id]).toBe(1)
   }
-  expect(research(profile, "jeep")).toBe(false)
-  profile.credits = researchCost("jeep")
-  expect(research(profile, "jeep")).toBe(true)
-  expect(profile.known).toContain("jeep")
-  expect(stockOf(profile, "jeep")).toBe(1)
+  expect(deployCost(["jeep"], {}, profile.salvage)).toBe(0)
+  expect(costLabel("jeep", 0, 0, 1)).toBe("RECOVERED")
+  expect(deployCost(["jeep", "jeep"], {}, profile.salvage)).toBe(priceOf("jeep") * 2)
+  expect(unlockExtracted(profile, w.found, w.found)).toEqual([])
+  for (const id of finds) {
+    expect(profile.salvage[id]).toBe(2)
+    expect(stockOf(profile, id)).toBe(2)
+  }
+  const left = fresh()
+  unlockExtracted(left, ["sentry", "scope"], ["scope"])
+  expect(left.known).toContain("sentry")
+  expect(left.salvage.sentry).toBeUndefined()
+  expect(stockOf(left, "sentry")).toBe(1)
+  expect(deployCost(["sentry"], {}, left.salvage)).toBe(priceOf("sentry"))
+  expect(left.salvage.scope).toBe(1)
+  expect(costLabel("scope", 0, 0, 1)).toBe("RECOVERED")
+  const legacy = fresh()
+  legacy.salvageBoot = false
+  legacy.known.push("scope")
+  legacy.found.push("scope")
+  legacy.depth.scope = 1
+  expect(deployCost(["scope"], {}, legacy.salvage)).toBe(priceOf("scope"))
+  bootSalvage(legacy)
+  expect(legacy.salvage.scope).toBe(1)
+  expect(deployCost(["scope"], {}, legacy.salvage)).toBe(0)
+  expect(costLabel("scope", 0, 0, 1)).toBe("RECOVERED")
+  expect(card("ifv").stats?.range).toBeGreaterThanOrEqual(16)
+  expect(card("ifv").stats?.range).toBeLessThan(card("mbt").stats?.range ?? 99)
+})
+
+test("abandoned sentry is not recovered on extract", () => {
+  const w = quiet()
+  w.found = ["sentry", "plate"]
+  const lead = w.bodies.find((b) => b.kind === STARTER)!
+  lead.gears.push("plate")
+  lead.out = true
+  w.toolbar.push({ id: "sentry", charges: 0, cd: 0, cdMax: 0 })
+  const haul = recoveredCards(w)
+  expect(haul).toContain("plate")
+  expect(haul.includes("sentry")).toBe(false)
+  const p = fresh()
+  unlockExtracted(p, w.found, haul)
+  expect(p.salvage.plate).toBe(1)
+  expect(p.salvage.sentry).toBeUndefined()
+  expect(stockOf(p, "sentry")).toBe(1)
 })
 
 test("attrition stacks on a card kept in the deck and cools when it sits out", () => {
@@ -1468,6 +1670,7 @@ test("JTAC, timed CAS airframes, laser, and FPV inbound", () => {
   expect(birds.toolbar[1].cd).toBeCloseTo(48, 5)
   step(birds, { ...IDLE, ability: 2 }, 1 / 30)
   expect(birds.toolbar[2].cd).toBeCloseTo(52, 5)
+  const lead = birds.bodies.find((b) => b.kind === "cell_rifle")!
   const ship = birds.bodies.find((b) => b.kind === "gunship" && b.alive)!
   const pod = birds.bodies.find((b) => b.kind === "rocket" && b.alive)!
   const bomb = birds.bodies.find((b) => b.kind === "bomber" && b.alive)!
@@ -1479,21 +1682,26 @@ test("JTAC, timed CAS airframes, laser, and FPV inbound", () => {
   expect(bomb.lob).toBe(true)
   expect(bomb.sortieT).toBeCloseTo(18, 0)
   expect(pod.parts.every((p) => p.id === "turret")).toBe(true)
+  expect(Math.hypot(bomb.x - lead.x, bomb.y - lead.y)).toBeGreaterThan(20)
+  expect(Math.hypot(ship.x - lead.x, ship.y - lead.y)).toBeGreaterThan(20)
   const ox = pod.x
   const oy = pod.y
   const beforeBusy = birds.toasts.length
   step(birds, { ...IDLE, ability: 1 }, 1 / 30)
   expect(birds.toasts.some((t) => t.msg === "Busy")).toBe(true)
   expect(birds.toasts.length).toBeGreaterThan(beforeBusy)
-  go(birds, IDLE, 0.4)
+  go(birds, IDLE, 6)
   expect(ship.fired + pod.fired + bomb.fired).toBeGreaterThan(0)
-  expect(birds.lobs.some((l) => l.lift > 0)).toBe(true)
+  expect(pod.fired + bomb.fired).toBeGreaterThan(0)
   go(birds, IDLE, 1)
   expect(Math.hypot(pod.x - ox, pod.y - oy)).toBeGreaterThan(1.5)
-  go(birds, IDLE, 25)
-  expect(ship.alive).toBe(false)
-  expect(pod.alive).toBe(false)
-  expect(bomb.alive).toBe(false)
+  // Bomber sortie 18s; leave + 2.8s outbound clears the body (no WRECK left behind).
+  go(birds, IDLE, 12)
+  expect(birds.toasts.some((t) => /away$/i.test(t.msg))).toBe(true)
+  go(birds, IDLE, 16)
+  expect(birds.bodies.some((b) => b.kind === "gunship" || b.kind === "rocket" || b.kind === "bomber")).toBe(
+    false,
+  )
   expect(birds.lost).toBe(0)
   birds.toolbar[1].cd = 0
   step(birds, { ...IDLE, ability: 1 }, 1 / 30)
@@ -1742,6 +1950,7 @@ test("late rust, leashes, marsh, stash, and the new tools", () => {
   }
   for (const id of ["roller", "kite", "slab"]) expect(hostile(id).id).toBe(id)
   expect(card("hex_siege").stats?.heavy).toBe(true)
+  expect(card("hex_siege").stats?.mobileFire).toBe(true)
   expect(card("k9").nvg).toBe(true)
 
   const guns = quiet()
@@ -1749,11 +1958,12 @@ test("late rust, leashes, marsh, stash, and the new tools", () => {
   cell.damage = 0
   cell.hp = 400
   const roller = spawnBody(guns, { kind: "roller", x: 6, y: 0 })
-  const kite = spawnBody(guns, { kind: "kite", x: 7, y: 1 })
+  const kite = spawnBody(guns, { kind: "kite", x: 1.4, y: 0.2 })
   go(guns, IDLE, 0.5)
   expect(roller.fired).toBeGreaterThan(0)
   expect(kite.air).toBe(true)
   expect(kite.fired).toBeGreaterThan(0)
+  expect(kite.shock).toBeGreaterThan(0)
 
   const file = quiet()
   const lead = file.bodies.find((b) => b.kind === "cell_rifle")!
@@ -2253,6 +2463,10 @@ test("muzzle flashes mark the gun and skip blades", () => {
   expect(flashOf("gren")?.shape).toBe("puff")
   expect(flashOf("knife")).toBeNull()
   expect(flashOf("bow")).toBeNull()
+  expect(flashOf("drone")?.shape).toBe("bolt")
+  expect(flashOf("scoot")?.core).toBe("#c8e8f0")
+  expect(flashOf("walker")?.shape).toBe("dot")
+  expect(flashOf("walker")?.light).toBeLessThan(flashOf("rifle")!.light)
   const w = quiet()
   const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
   lead.cool = 0
@@ -2265,6 +2479,71 @@ test("muzzle flashes mark the gun and skip blades", () => {
   expect(w.flashes[0].shape).toBe("cross")
   expect(w.flashes[0].light).toBeGreaterThan(4)
   console.log("GATE muzzle-flash ok")
+})
+
+test("hex siege fires on the move", () => {
+  const w = quiet()
+  w.dayOff = 0
+  w.t = 0
+  const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
+  lead.damage = 0
+  const hex = spawnBody(w, { kind: "hex_siege", x: 0, y: 0, inSection: true })
+  lead.boarded = hex.id
+  spawnBody(w, { kind: "shambler", x: 8, y: 0, speed: 0, hp: 400, damage: 0 })
+  expect(hex.mobileFire).toBe(true)
+  for (let i = 0; i < 45; i++) step(w, { ...IDLE, moveX: 1, moveY: 0 }, 1 / 30)
+  expect(hex.fired).toBeGreaterThan(0)
+  console.log("GATE hex-siege-fire ok")
+})
+
+test("hostile muzzle flashes do not grant night combat sight", () => {
+  const w = quiet()
+  w.t = 90
+  const cell = w.bodies.find((b) => b.kind === "cell_rifle")!
+  cell.damage = 0
+  // Aim away so the standing beam does not light the drone.
+  cell.hdg = Math.PI
+  // Roller range 8; night sight 0.4 → ~3.2. At 5 only lit day-range reaches.
+  const rust = spawnBody(w, { kind: "roller", x: 5, y: 0, speed: 0 })
+  rust.cool = 0
+  step(w, IDLE, 1 / 30)
+  expect(rust.fired).toBe(0)
+
+  w.flashes.push({
+    x: rust.x,
+    y: rust.y,
+    hdg: Math.PI,
+    life: 1,
+    max: 1,
+    shape: "bloom",
+    core: "#e1c15a",
+    along: 5,
+    across: 3,
+    light: 8,
+    from: rust.id,
+  })
+  rust.cool = 0
+  step(w, IDLE, 1 / 30)
+  expect(rust.fired).toBe(0)
+
+  w.flashes.push({
+    x: cell.x,
+    y: cell.y,
+    hdg: 0,
+    life: 1,
+    max: 1,
+    shape: "cross",
+    core: "#e1c15a",
+    along: 5,
+    across: 3,
+    light: 8,
+    from: cell.id,
+  })
+  rust.cool = 0
+  const before = rust.fired
+  step(w, IDLE, 1 / 30)
+  expect(rust.fired).toBeGreaterThan(before)
+  console.log("GATE hostile-flash-sight ok")
 })
 
 test("campaign map nodes have multiple exits and residue eco", () => {
@@ -2309,4 +2588,15 @@ test("leaving a node scars it and can cache loot", () => {
   expect(node.loot.length).toBeLessThanOrEqual(2)
   expect(node.loot.some((l) => l.kind === "salvage")).toBe(true)
   console.log("GATE world-scar ok")
+})
+
+test("scarred quiet nodes still horde", () => {
+  const w = makeRun(11, ["cell_rifle"])
+  const node = w.map.nodes.find((n) => n.id === w.nodeId)!
+  node.feral = 0.1
+  node.rust = 0.1
+  node.scar = 9
+  for (let i = 0; i < 180; i++) step(w, IDLE, 1 / 30)
+  expect(w.bodies.some((b) => b.alive && b.side !== "player")).toBe(true)
+  console.log("GATE scar-horde ok")
 })

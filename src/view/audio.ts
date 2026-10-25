@@ -27,6 +27,7 @@ let ctx: AudioContext | null = null
 let bus: GainNode | null = null
 let noise: AudioBuffer | null = null
 let last = 0
+let lastPop = 0
 
 export function audioPrefs() {
   return prefs
@@ -89,4 +90,35 @@ export function thuds(bursts: { tint: string }[]) {
   veil.connect(bus)
   grit.start(now)
   grit.stop(now + 0.45)
+}
+
+/** Muffled brass crack for section powder (hip and set). Quieter than hit thuds. */
+export function pops(n: number) {
+  if (n <= 0 || prefs.mute || prefs.vol <= 0) return
+  const c = context()
+  if (!bus || !noise || c.state !== "running") return
+  const now = c.currentTime
+  if (now - lastPop < 0.05) return
+  lastPop = now
+  const body = c.createOscillator()
+  const gain = c.createGain()
+  body.type = "triangle"
+  body.frequency.setValueAtTime(420, now)
+  body.frequency.exponentialRampToValueAtTime(90, now + 0.07)
+  gain.gain.setValueAtTime(0.0001, now)
+  gain.gain.exponentialRampToValueAtTime(0.12, now + 0.006)
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09)
+  body.connect(gain)
+  gain.connect(bus)
+  body.start(now)
+  body.stop(now + 0.12)
+  const grit = c.createBufferSource()
+  const veil = c.createGain()
+  grit.buffer = noise
+  veil.gain.setValueAtTime(0.06, now)
+  veil.gain.exponentialRampToValueAtTime(0.0001, now + 0.05)
+  grit.connect(veil)
+  veil.connect(bus)
+  grit.start(now)
+  grit.stop(now + 0.08)
 }

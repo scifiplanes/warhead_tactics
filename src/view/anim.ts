@@ -1,6 +1,6 @@
 import type { Pose } from "./sprites"
 
-export type FootMode = "idle" | "move" | "deploy" | "fire" | "stun" | "crawl"
+export type FootMode = "idle" | "move" | "deploy" | "fire" | "reload" | "stun" | "crawl"
 
 /** View-local foot motion. Sim stays headless; cache is keyed by body id. */
 export type FootAnim = {
@@ -162,6 +162,10 @@ type BodyIn = {
   mobileFire: boolean
   deployNeed: number
   deploy: number
+  ammoMax: number
+  ammo: number
+  reloadNeed: number
+  reloadT: number
   stun: number
   parts: Part[]
   side: string
@@ -247,29 +251,34 @@ export function footAnim(
   const liveLeg = limp ? (b.parts.findIndex((p) => p.id === "leg" && p.on) === 0 ? 0 : 1) : -1
 
   const deploying = !b.mobileFire && b.deployNeed > 0 && b.deploy > 0.05 && !b.moved
+  const reloading = b.ammoMax > 0 && b.ammo <= 0 && b.reloadNeed > 0 && b.reloadT > 0
   const stunned = b.stun > 0
   const firing = s.fireKick > 0.15
 
   let mode: FootMode = "idle"
   if (stunned) mode = "stun"
   else if (crawl) mode = "crawl"
+  else if (reloading) mode = "reload"
   else if (deploying) mode = "deploy"
   else if (firing && !b.moved) mode = "fire"
   else if (b.moved) mode = "move"
 
-  const strideMul = limp ? 0.7 : crawl ? 0.45 : mode === "deploy" || mode === "stun" ? 0 : 1
+  const strideMul =
+    limp ? 0.7 : crawl ? 0.45 : mode === "deploy" || mode === "stun" || (mode === "reload" && !b.moved) ? 0 : 1
   const speed = b.moved ? Math.max(b.vel, step / Math.max(dt, 1 / 120)) : 0
   let wantLean = speed > 0.4 ? LEAN_MAX : 0
   if (limp) wantLean += 0.6
   if (mode === "stun") wantLean = 1.2
   if (mode === "crawl") wantLean = 0.3
+  if (mode === "reload") wantLean = Math.max(wantLean, 0.35)
   s.lean += (wantLean - s.lean) * Math.min(1, dt * 8)
 
   const fx = Math.cos(aim) * (b.face < 0 ? -1 : 1)
-  const wantLookX = mode === "stun" ? 0 : fx > 0.35 ? 1 : fx < -0.35 ? -1 : 0
-  const wantLookY = mode === "stun" ? 1 : Math.sin(aim) > 0.35 ? -1 : Math.sin(aim) < -0.35 ? 1 : 0
-  s.lookX += (wantLookX - s.lookX) * Math.min(1, dt * (mode === "fire" ? 10 : 6))
-  s.lookY += (wantLookY - s.lookY) * Math.min(1, dt * (mode === "fire" ? 10 : 6))
+  const wantLookX = mode === "stun" ? 0 : mode === "reload" ? (b.face < 0 ? -1 : 1) : fx > 0.35 ? 1 : fx < -0.35 ? -1 : 0
+  const wantLookY =
+    mode === "stun" || mode === "reload" ? 1 : Math.sin(aim) > 0.35 ? -1 : Math.sin(aim) < -0.35 ? 1 : 0
+  s.lookX += (wantLookX - s.lookX) * Math.min(1, dt * (mode === "fire" || mode === "reload" ? 10 : 6))
+  s.lookY += (wantLookY - s.lookY) * Math.min(1, dt * (mode === "fire" || mode === "reload" ? 10 : 6))
 
   const hold = nearestHold(b.x, b.y, holds)
   let wantLift = 0
@@ -284,6 +293,7 @@ export function footAnim(
     const localX = dx * (b.face < 0 ? -1 : 1)
     wantSide = Math.abs(localX) > 0.12 ? (localX > 0 ? 1 : -1) : 0
   }
+  if (mode === "reload") wantSide = b.face < 0 ? -1 : 1
   s.holdLift += (wantLift - s.holdLift) * Math.min(1, dt * 7)
   s.holdSide += (wantSide - s.holdSide) * Math.min(1, dt * 6)
 
@@ -293,10 +303,14 @@ export function footAnim(
   let pose: Pose = "idle"
   let torso: Pose = "idle"
   let legs: Pose = "idle"
-  if (mode === "deploy") {
+  if (mode === "deploy" || (mode === "reload" && !b.moved)) {
     pose = "dep"
     torso = "dep"
     legs = "dep"
+  } else if (mode === "reload" && b.moved) {
+    pose = gait < 0.5 ? "walk" : "idle"
+    torso = "dep"
+    legs = limp ? (gait < 0.65 ? "walk" : "idle") : gait < 0.5 ? "walk" : "idle"
   } else if (mode === "stun" || mode === "crawl") {
     pose = "idle"
     torso = "idle"
@@ -373,12 +387,16 @@ export function footAnim(
     !crawl &&
     mode !== "stun" &&
     mode !== "move" &&
+    mode !== "reload" &&
     (mode === "idle" || mode === "deploy" || mode === "fire") &&
     s.holdLift > 0.25
   const brace = wantBrace ? runSoft(s, "brace", BRACE, b, dt, hold, seek, mode, gait) : null
   if (!wantBrace) s.brace = null
   const soft = mergeSoft(creature, brace)
 
+  const face = b.face < 0 ? -1 : 1
+  const reloadFrac =
+    mode === "reload" && b.reloadNeed > 0 ? Math.max(0, Math.min(1, 1 - b.reloadT / b.reloadNeed)) : 0
   const out: FootAnim = {
     mode,
     pose,
@@ -391,9 +409,10 @@ export function footAnim(
     coatDx,
     legsDx,
     legsDy,
-    gunDx: 0,
-    gunDy: mode === "fire" ? -Math.round(s.recoil * 0.3) : 0,
-    aimAng: showGun ? aim : null,
+    gunDx: mode === "reload" ? -face : 0,
+    gunDy: mode === "fire" ? -Math.round(s.recoil * 0.3) : mode === "reload" ? 1 + Math.round(reloadFrac) : 0,
+    // Tip the barrel down while the mag seats.
+    aimAng: showGun ? (mode === "reload" ? aim + face * (0.55 - reloadFrac * 0.35) : aim) : null,
     showHead,
     showLegs,
     showGun,

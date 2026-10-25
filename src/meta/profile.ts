@@ -10,6 +10,10 @@ export type Profile = {
   /** Times researched; also the copy stock for the deck. */
   depth: Record<string, number>
   wear: Record<string, number>
+  /** Free deploy copies from finds hauled out on extract (shown as RECOVERED). */
+  salvage: Record<string, number>
+  /** True after one-time grant of free stock for pre-recovered unlocks. */
+  salvageBoot?: boolean
   heroes: Hero[]
   /** Seeded field graph; persists scars and residue across runs. */
   worldSeed: number
@@ -24,10 +28,27 @@ export function fresh(): Profile {
     known: [STARTER],
     depth: { [STARTER]: 1 },
     wear: {},
+    salvage: {},
+    salvageBoot: true,
     heroes: [],
     worldSeed,
     map: genMap(worldSeed),
   }
+}
+
+/**
+ * Pre-recovered extracts only set known/depth. Grant one free RECOVERED copy each.
+ * Research after this boot still pays for the first deploy.
+ */
+export function bootSalvage(p: Profile) {
+  if (!p.salvage) p.salvage = {}
+  if (p.salvageBoot) return
+  for (const id of p.known) {
+    if (id === STARTER || isHero(id) || priceOf(id) <= 0) continue
+    if ((p.depth[id] ?? 0) < 1) continue
+    if ((p.salvage[id] ?? 0) < 1) p.salvage[id] = 1
+  }
+  p.salvageBoot = true
 }
 
 export function load(): Profile {
@@ -70,6 +91,16 @@ export function load(): Profile {
       if (!p.depth[id]) p.depth[id] = 1
     }
     if (!p.depth[STARTER]) p.depth[STARTER] = 1
+    const rawSalvage = p.salvage
+    p.salvage = {}
+    if (rawSalvage && typeof rawSalvage === "object") {
+      for (const id of Object.keys(rawSalvage)) {
+        const n = Math.floor(Number(rawSalvage[id]))
+        if (n > 0) p.salvage[id] = n
+      }
+    }
+    p.salvageBoot = Boolean(p.salvageBoot)
+    bootSalvage(p)
     p.worldSeed = Math.max(1, Math.floor(Number(p.worldSeed) || 0) || ((Math.random() * 1e9) | 0) || 1)
     p.map = parseMap(p.map) ?? genMap(p.worldSeed)
     return p
@@ -91,6 +122,8 @@ export function restart(p: Profile) {
   p.known = [STARTER]
   p.depth = { [STARTER]: 1 }
   p.wear = {}
+  p.salvage = {}
+  p.salvageBoot = true
   p.heroes = []
   p.worldSeed = (Math.random() * 1e9) | 0 || 1
   p.map = genMap(p.worldSeed)
@@ -106,6 +139,33 @@ export function bankFinds(p: Profile, found: string[]): string[] {
     added.push(id)
   }
   return added
+}
+
+/**
+ * Successful extract: finds become loadout-ready. Only finds actually hauled out
+ * (`recovered`) get a free RECOVERED deploy copy — abandoned kit (spent sentry, etc.) does not.
+ * A wipe still only banks them for research via `bankFinds`.
+ */
+export function unlockExtracted(p: Profile, found: string[], recovered: string[] = []): string[] {
+  if (!p.salvage) p.salvage = {}
+  const hauled = new Set(recovered.filter((id) => !isHero(id)))
+  const unlocked: string[] = []
+  for (const id of found) {
+    if (isHero(id)) continue
+    if (!p.found.includes(id)) p.found.push(id)
+    const fresh = !p.known.includes(id)
+    if (fresh) {
+      p.known.push(id)
+      unlocked.push(id)
+    }
+    if (hauled.has(id)) {
+      p.salvage[id] = (p.salvage[id] ?? 0) + 1
+      p.depth[id] = Math.max(p.depth[id] ?? 0, p.salvage[id])
+    } else if ((p.depth[id] ?? 0) < 1) {
+      p.depth[id] = 1
+    }
+  }
+  return unlocked
 }
 
 const HERO_CHASSIS = new Set(["cell_rifle", "medic", "engr", "relay"])
@@ -148,17 +208,29 @@ export function save(p: Profile) {
   }
 }
 
-export function cardCost(id: string, wear = 0, copy = 0) {
+export function cardCost(id: string, wear = 0, copy = 0, salvage = 0) {
+  if (copy < salvage) return 0
   return paidFor(id, wear, copy)
 }
 
-export function deployCost(deck: string[], wear: Record<string, number> = {}) {
+/** Deck button / deploy label: RECOVERED for free hauled-find stock, else CR. */
+export function costLabel(id: string, wear = 0, copy = 0, salvage = 0) {
+  if (copy < salvage && priceOf(id) > 0) return "RECOVERED"
+  const n = cardCost(id, wear, copy, salvage)
+  return n ? `${n} CR` : ""
+}
+
+export function deployCost(
+  deck: string[],
+  wear: Record<string, number> = {},
+  salvage: Record<string, number> = {},
+) {
   const seen: Record<string, number> = {}
   let sum = 0
   for (const id of deck) {
     const n = seen[id] ?? 0
     seen[id] = n + 1
-    sum += cardCost(id, wear[id] ?? 0, n)
+    sum += cardCost(id, wear[id] ?? 0, n, salvage[id] ?? 0)
   }
   return sum
 }

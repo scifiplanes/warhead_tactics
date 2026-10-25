@@ -73,11 +73,32 @@ const FLASH: Record<string, FlashDef | null> = {
   lob: { shape: "puff", life: 0.2, core: "#a8a49c", rim: "#5a564e", along: 3, across: 4, light: 2.8 },
   // hull / android mount
   mount: { shape: "bloom", life: 0.18, core: "#e1c15a", rim: "#f0e0a0", along: 5, across: 3, light: 6 },
+  // later rust gun spit — small oxide, reads apart from section brass
+  oxide: { shape: "dot", life: 0.11, core: "#8a5040", rim: "#5a3830", along: 2, across: 1, light: 2.2 },
+  // early rust taser — short pale zig-zag (not powder)
+  taser: { shape: "bolt", life: 0.14, core: "#c8e8f0", rim: "#6a9088", along: 4, across: 2, light: 2.6 },
   // no powder flash
   bow: null,
   blade: null,
   blade_long: null,
 }
+
+/** Early rust tasers — electric bolt flash. */
+const TASER_FLASH = new Set(["drone", "scoot", "kite"])
+
+/** Later rust powder guns. */
+const RUST_FLASH = new Set([
+  "walker",
+  "tract",
+  "roller",
+  "slab",
+  "flake",
+  "cluster",
+  "post",
+  "mast",
+  "crowhead",
+  "goathead",
+])
 
 export function gunFamily(gunId: string | null | undefined): string {
   if (!gunId) return "mount"
@@ -92,6 +113,8 @@ export function gunMuzzle(gunId: string | null | undefined): number {
 /** Flash profile for a gun id / hull kind. Null = silent (blade, bow). */
 export function flashOf(gunId: string | null | undefined): FlashDef | null {
   const key = gunFamily(gunId)
+  if (TASER_FLASH.has(key)) return FLASH.taser
+  if (RUST_FLASH.has(key)) return FLASH.oxide
   if (key in FLASH) return FLASH[key]
   // unknown ranged gear → rifle-like; hull kinds fall to mount
   if (REACH[key] != null && FLASH[key] === null) return null

@@ -316,7 +316,7 @@ export function draw(
     g.globalAlpha = 1
   }
 
-  const bars: { x: number; y: number; hp: number | null; deploy: number | null }[] = []
+  const bars: { x: number; y: number; hp: number | null; deploy: number | null; reload: number | null }[] = []
   const bodies = w.bodies.filter((b) => b.boarded === null && b.alive).sort((a, c) => c.y - a.y)
   for (const b of bodies) {
     const x = X(b.x)
@@ -362,8 +362,18 @@ export function draw(
     }
     const deploy =
       !b.mobileFire && b.deployNeed > 0 && b.deploy < b.deployNeed ? Math.max(0, b.deploy / b.deployNeed) : null
-    if (b.side === "player" || deploy !== null) {
-      bars.push({ x, y: y - lift, hp: b.side === "player" ? Math.max(0, b.hp / b.maxHp) : null, deploy })
+    const reload =
+      b.ammoMax > 0 && b.ammo <= 0 && b.reloadNeed > 0
+        ? Math.max(0, Math.min(1, 1 - b.reloadT / b.reloadNeed))
+        : null
+    if (b.side === "player" || deploy !== null || reload !== null) {
+      bars.push({
+        x,
+        y: y - lift,
+        hp: b.side === "player" ? Math.max(0, b.hp / b.maxHp) : null,
+        deploy,
+        reload,
+      })
     }
     if (b.vehicle && b.seats > 0) {
       let n = 0
@@ -483,6 +493,7 @@ export function draw(
     ctx.restore()
   }
   paintTags(ctx, w, width, height, bw, bh, zoom, cx, cy)
+  paintReloadCues(ctx, w, width, height, bw, bh, zoom, cx, cy)
   paintTracker(ctx, w, width, height, bw, bh, zoom, cx, cy)
   paintPins(ctx, w, width, height, bw, bh, zoom, cx, cy)
   paintSignals(ctx, w, width, height, bw, bh, zoom, cx, cy)
@@ -593,18 +604,25 @@ function paintShadow(g: CanvasRenderingContext2D, x: number, y: number, b: { kin
   g.fill()
 }
 
-function paintBars(g: CanvasRenderingContext2D, bars: { x: number; y: number; hp: number | null; deploy: number | null }[]) {
+function paintBars(
+  g: CanvasRenderingContext2D,
+  bars: { x: number; y: number; hp: number | null; deploy: number | null; reload: number | null }[],
+) {
   for (const b of bars) {
-    const dep = b.deploy !== null
+    const meter = b.reload !== null || b.deploy !== null
     if (b.hp !== null) {
-      const by = dep ? b.y - 11 : b.y - 9
+      const by = meter ? b.y - 11 : b.y - 9
       g.fillStyle = "#101010"
       g.fillRect(b.x - 4, by, 8, 1)
       g.fillStyle = hpColor(b.hp)
       g.fillRect(b.x - 4, by, Math.round(8 * b.hp), 1)
     }
-    if (dep) {
-      const k = Math.max(1, Math.round(8 * (b.deploy as number)))
+    if (b.reload !== null) {
+      const k = Math.max(1, Math.round(8 * b.reload))
+      g.fillStyle = "#8a9088"
+      g.fillRect(b.x - 4, b.y - 9, k, 1)
+    } else if (b.deploy !== null) {
+      const k = Math.max(1, Math.round(8 * b.deploy))
       g.fillStyle = "#e8e2d0"
       g.fillRect(b.x - 4, b.y - 9, k, 1)
     }
@@ -692,9 +710,9 @@ function paintNight(
   // Muzzle flashes punch real light holes in the night veil.
   for (const f of w.flashes) {
     if (f.light <= 0) continue
-    const tip = f.from != null ? muzzleScreen(w, f.from, X, Y, zoom) : null
-    const x = tip?.x ?? X(f.x)
-    const y = tip?.y ?? Y(f.y) - 4
+    const tip = flashAttach(w, f, X, Y, zoom)
+    const x = tip.x
+    const y = tip.y
     const fade = 0.45 + 0.55 * (f.life / f.max)
     const r = f.light * zoom * fade
     const grd = s.createRadialGradient(x, y, 0, x, y, r)
@@ -727,19 +745,17 @@ function paintNight(
   // Warm flash bloom in the punched light (scarce gold).
   for (const f of w.flashes) {
     if (f.light <= 0) continue
-    const tip = f.from != null ? muzzleScreen(w, f.from, X, Y, zoom) : null
-    const x = tip?.x ?? X(f.x)
-    const y = tip?.y ?? Y(f.y) - 4
+    const tip = flashAttach(w, f, X, Y, zoom)
     const fade = f.life / f.max
     const r = f.light * zoom * (0.45 + 0.55 * fade)
     const a = (0.1 + 0.22 * fade) * dusk
-    const grd = g.createRadialGradient(x, y, 0, x, y, r)
+    const grd = g.createRadialGradient(tip.x, tip.y, 0, tip.x, tip.y, r)
     grd.addColorStop(0, `rgba(225,193,90,${a})`)
     grd.addColorStop(0.4, `rgba(225,193,90,${a * 0.45})`)
     grd.addColorStop(1, "rgba(225,193,90,0)")
     g.fillStyle = grd
     g.beginPath()
-    g.arc(x, y, r, 0, Math.PI * 2)
+    g.arc(tip.x, tip.y, r, 0, Math.PI * 2)
     g.fill()
   }
 }
@@ -814,6 +830,49 @@ function paintTags(
   ctx.restore()
 }
 
+/** Sustained steel brackets + RELOAD plate while a powder mag seats. */
+function paintReloadCues(
+  ctx: CanvasRenderingContext2D,
+  w: World,
+  width: number,
+  height: number,
+  bw: number,
+  bh: number,
+  zoom: number,
+  cx: number,
+  cy: number,
+) {
+  const { sx, sy } = screenOf(width, height, bw, bh, zoom, cx, cy)
+  const col = "#8a9088"
+  const arm = 8
+  ctx.save()
+  ctx.lineWidth = 1
+  ctx.font = "12px VGA, monospace"
+  ctx.textBaseline = "top"
+  for (const b of w.bodies) {
+    if (!b.alive || b.boarded !== null || b.side !== "player") continue
+    if (!(b.ammoMax > 0 && b.ammo <= 0 && b.reloadNeed > 0 && b.reloadT > 0)) continue
+    const x = sx(b.x)
+    const y = sy(b.y)
+    const pulse = 0.5 + 0.3 * (0.5 + 0.5 * Math.sin(w.t * 7 + b.id))
+    ctx.globalAlpha = pulse
+    ctx.strokeStyle = col
+    corner(ctx, x, y, -arm, -arm, 4, 4)
+    corner(ctx, x, y, arm, -arm, -4, 4)
+    corner(ctx, x, y, -arm, arm, 4, -4)
+    corner(ctx, x, y, arm, arm, -4, -4)
+    const text = "RELOAD"
+    const tw = ctx.measureText(text).width
+    const px = x - (tw + 8) / 2
+    const py = y - 34
+    ctx.fillStyle = "rgba(0,0,0,.85)"
+    ctx.fillRect(px, py, tw + 8, 14)
+    ctx.fillStyle = col
+    ctx.fillText(text, px + 4, py + 1)
+  }
+  ctx.restore()
+}
+
 function paintTracker(
   ctx: CanvasRenderingContext2D,
   w: World,
@@ -870,32 +929,50 @@ function paintFlashes(
   cy: number,
 ) {
   if (!w.flashes.length) return
-  const scale = width / bw
+  const sx = width / bw
+  const sy = height / bh
   const Xb = (x: number) => Math.round(bw / 2 + (x - cx) * zoom)
   const Yb = (y: number) => Math.round(bh / 2 - (y - cy) * zoom)
-  const cell = Math.max(2, Math.round(scale))
+  const cell = Math.max(2, Math.round((sx + sy) / 2))
   ctx.save()
   ctx.imageSmoothingEnabled = false
   for (const f of w.flashes) {
-    const tip = f.from != null ? muzzleScreen(w, f.from, Xb, Yb, zoom) : null
-    const ox = tip ? tip.x * scale : ((bw / 2 + (f.x - cx) * zoom) / bw) * width
-    const oy = tip ? tip.y * scale : ((bh / 2 - (f.y - cy) * zoom) / bh) * height
+    const tip = flashAttach(w, f, Xb, Yb, zoom)
+    const ox = tip.x * sx
+    const oy = tip.y * sy
     const a = Math.max(0, f.life / f.max)
     ctx.globalAlpha = 0.55 + 0.45 * a
-    // World +y is screen -y.
-    const fx = Math.cos(f.hdg)
-    const fy = -Math.sin(f.hdg)
-    const along = Math.max(1, Math.round(f.along * scale))
-    const across = Math.max(1, Math.round(f.across * scale))
+    const along = Math.max(1, Math.round(f.along * sx))
+    const across = Math.max(1, Math.round(f.across * sx))
     const rim = f.rim ?? f.core
     const px = (dx: number, dy: number, col: string, big = false) => {
       const s = big ? cell + 1 : cell
       ctx.fillStyle = col
       ctx.fillRect(Math.round(ox + dx - s / 2), Math.round(oy + dy - s / 2), s, s)
     }
-    paintFlashShape(f.shape, along, across, fx, fy, a, f.core, rim, px)
+    paintFlashShape(f.shape, along, across, tip.dx, tip.dy, a, f.core, rim, px)
   }
   ctx.restore()
+}
+
+/** Buffer-space muzzle + barrel dir — matches the stamp/turret drawn this frame. */
+function flashAttach(
+  w: World,
+  f: Flash,
+  X: (x: number) => number,
+  Y: (y: number) => number,
+  zoom: number,
+): { x: number; y: number; dx: number; dy: number } {
+  const foot = f.from != null ? muzzleScreen(w, f.from, X, Y, zoom) : null
+  if (foot) return foot
+  const hull = f.from != null ? vehicleMuzzleScreen(w, f.from, X, Y, zoom) : null
+  if (hull) return hull
+  return {
+    x: X(f.x),
+    y: Y(f.y) - 4,
+    dx: Math.cos(f.hdg),
+    dy: -Math.sin(f.hdg),
+  }
 }
 
 function paintFlashShape(
@@ -968,7 +1045,7 @@ function muzzleScreen(
   X: (x: number) => number,
   Y: (y: number) => number,
   _zoom: number,
-): { x: number; y: number } | null {
+): { x: number; y: number; dx: number; dy: number } | null {
   const b = w.bodies.find((o) => o.id === id && o.alive && o.boarded === null)
   if (!b || b.vehicle) return null
   const a = lastFoot(b.id) ?? footAnim(b, 0, b.hdg, footholdsNear(w, b), softSeek(w, b))
@@ -992,6 +1069,46 @@ function muzzleScreen(
     fx,
     fy,
   )
+}
+
+/** Hull turret muzzle in buffer space — same mount/aim stack as vehicle paint. */
+function vehicleMuzzleScreen(
+  w: World,
+  id: number,
+  X: (x: number) => number,
+  Y: (y: number) => number,
+  _zoom: number,
+): { x: number; y: number; dx: number; dy: number } | null {
+  const b = w.bodies.find((o) => o.id === id && o.alive)
+  if (!b || !b.vehicle) return null
+  if (!b.parts.some((p) => p.id === "turret" && p.on)) return null
+  const veh = vehicleArt(b.kind)
+  if (!veh) return null
+  const hm = hullMotion(b, 0)
+  const lift = airLift(b)
+  // Match vehicle paint: origin is body center, not ground contact.
+  const cx = X(b.x)
+  const cy = Y(b.y) - veh.body.height / 2 - lift - hm.bob
+  const bodyAng = -b.hdg + hm.lean * 0.04
+  const cosB = Math.cos(bodyAng)
+  const sinB = Math.sin(bodyAng)
+  const mx = veh.mount[0]
+  const my = veh.mount[1]
+  const mountX = cx + mx * cosB - my * sinB
+  const mountY = cy + mx * sinB + my * cosB
+  const want = aimOf(w, b.x, b.y)
+  const aim = turretAim(b.id, want, 0)
+  // Net turret angle after body rotate(-hdg) + turret rotate(aim+hdg) is `aim` (buffer).
+  // Tip is the far edge of the turret stamp from the pivot (barrel muzzle).
+  const tipLen = Math.max(2, veh.turret.width - veh.pivot[0])
+  const dx = Math.cos(aim)
+  const dy = Math.sin(aim)
+  return {
+    x: Math.round(mountX + dx * tipLen),
+    y: Math.round(mountY + dy * tipLen),
+    dx,
+    dy,
+  }
 }
 
 function paintFoot(
@@ -1045,12 +1162,14 @@ function paintFoot(
       g.fillStyle = b.side === "player" ? "#a8a49c" : b.side === "rust" ? "#8a5040" : "#6a3030"
       g.fillRect(px - 2, py - 8 - lift, 4, 8)
     }
+    paintMagChip(g, b, a, px, py, thermal)
     return
   }
   const spr = actor(b.kind, a.pose, b.face < 0, kit)
   if (!spr) {
     g.fillStyle = b.side === "player" ? "#a8a49c" : b.side === "rust" ? "#8a5040" : "#6a3030"
     g.fillRect(px - 2, py - 8 - lift, 4, 8)
+    paintMagChip(g, b, a, px, py, thermal)
     return
   }
   if (lift === 0 && hover === 0) {
@@ -1062,6 +1181,27 @@ function paintFoot(
   }
   blit(g, thermal ? heatOf(spr) : spr, px, py)
   gash(g, spr, px, py, b)
+  paintMagChip(g, b, a, px, py, thermal)
+}
+
+/** Mag rises into the well while FootMode is reload. */
+function paintMagChip(
+  g: CanvasRenderingContext2D,
+  b: Body,
+  a: FootAnim,
+  px: number,
+  py: number,
+  thermal: boolean,
+) {
+  if (a.mode !== "reload" || b.reloadNeed <= 0) return
+  const t = Math.max(0, Math.min(1, 1 - b.reloadT / b.reloadNeed))
+  const face = b.face < 0 ? -1 : 1
+  const mx = Math.round(px + face * 3)
+  const my = Math.round(py - 1 - t * 5)
+  g.fillStyle = thermal ? "#f4e7a8" : "#5a5850"
+  g.fillRect(mx, my, 2, 3)
+  g.fillStyle = thermal ? "#f4e7a8" : "#8a8680"
+  g.fillRect(mx, my, 2, 1)
 }
 
 /** Soft chains under the body stamp so the mass still reads on top. */

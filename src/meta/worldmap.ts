@@ -211,9 +211,17 @@ export function hordeScale(n: FieldNode) {
 export function foldHostiles(n: FieldNode, feralAlive: number, rustAlive: number, kills: number) {
   n.feral = clamp(n.feral * 0.35 + feralAlive * 0.55, 0, 18)
   n.rust = clamp(n.rust * 0.35 + rustAlive * 0.55, 0, 18)
-  n.scar = clamp(n.scar + kills * 0.12 + (feralAlive + rustAlive === 0 ? 1.2 : 0), 0, 12)
+  // Clear bonus only when the visit actually fought — empty scar-quiet revisits
+  // must not stack scar forever with no residue left to recover.
+  const cleared = feralAlive + rustAlive === 0 && kills > 0
+  n.scar = clamp(n.scar + kills * 0.12 + (cleared ? 1.2 : 0), 0, 12)
   if (kills > 4) n.bio = clamp(n.bio - 0.4, 0, 12)
   if (kills > 4) n.oxide = clamp(n.oxide + 0.3, 0, 12)
+  // Floor a trickle of mass from bio/oxide so packs can return after heavy scar.
+  if (n.feral + n.rust < 1.2) {
+    n.feral = clamp(n.feral + Math.min(1.4, n.bio * 0.15), 0, 18)
+    n.rust = clamp(n.rust + Math.min(1.4, n.oxide * 0.15), 0, 18)
+  }
 }
 
 export function cacheLoot(n: FieldNode, loot: CachedLoot[]) {

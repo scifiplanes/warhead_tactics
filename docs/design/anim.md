@@ -8,12 +8,15 @@ View-only (`src/view/anim.ts`). Sim stays headless. Cache keyed by body id.
 |------|------|
 | `stun` | `stun > 0` |
 | `crawl` | no living legs |
+| `reload` | powder mag empty, reload clock running |
 | `deploy` | deploy weapon, not moving |
 | `fire` | recent shot, standing |
 | `move` | `moved` |
 | `idle` | else |
 
-Path gait locks to travel. Recoil and hp/stun hits kick the chest. Gun wedge → `hdg`. Tracers, muzzle flashes, and night beams leave the stamp muzzle (`gunTipAt`), including deploy and aim-up. Flash shape is the weapon signature; at night the flash is also a radial light (`src/content/muzzle.ts`).
+Reload tips the gun, seats a 2×3 mag chip, and keeps a dep torso (walk legs if moving).
+
+Path gait locks to travel. Recoil and hp/stun hits kick the chest. Gun wedge → `hdg`. Tracers, muzzle flashes, and night beams leave the stamp muzzle (`gunTipAt`), including deploy and aim-up. Flash shape is the weapon signature; at night every flash punches the veil, but only section flashes light combat sight (`src/content/muzzle.ts`).
 
 ## Chunks
 

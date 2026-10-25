@@ -675,6 +675,7 @@ function tipLenPx(gun: string, pose: Pose, bits: string[]): { s: Stamp; tip: num
 /**
  * Screen-pixel gun tip for a foot blit at (x,y). Matches `drawLayered` grip + rotate
  * so tracers and beams leave the muzzle when deployed or aimed up/down.
+ * `dx`/`dy` is the screen barrel unit vector (same space as tip).
  */
 export function gunTipAt(
   kind: string,
@@ -682,7 +683,7 @@ export function gunTipAt(
   off: TipOff,
   x: number,
   y: number,
-): { x: number; y: number } | null {
+): { x: number; y: number; dx: number; dy: number } | null {
   if (!off.showGun || !PALS[kind]) return null
   const torso = off.torso === "dep" && layerPacks.has(`${kind}:dep`) ? "dep" : "idle"
   const pack = layerPacks.get(`${kind}:${torso}`)
@@ -701,17 +702,24 @@ export function gunTipAt(
     const sx = off.flipX ? left + w - gripX : left + gripX
     const sy = top + gripY
     const ang = -off.aimAng!
+    const dx = Math.cos(ang)
+    const dy = Math.sin(ang)
     return {
-      x: Math.round(sx + Math.cos(ang) * tip),
-      y: Math.round(sy + Math.sin(ang) * tip),
+      x: Math.round(sx + dx * tip),
+      y: Math.round(sy + dy * tip),
+      dx,
+      dy,
     }
   }
   // Unrotated (mortar / no aim): tip at stamp muzzle, mirrored with the body.
   const tipX = s.x + off.gunDx + off.coatDx + tip
   const tipY = gripY
+  const dx = off.flipX ? -1 : 1
   return {
     x: Math.round(off.flipX ? left + w - tipX : left + tipX),
     y: Math.round(top + tipY),
+    dx,
+    dy: 0,
   }
 }
 
@@ -1101,11 +1109,12 @@ function mbt(): VehArt {
   rects(g, "#5a5850", [[20, 5, 5, 8]])
   rects(g, "#2a2824", [[0, 6, 2, 6]])
   shadeFlat(b)
-  const t = cv(24, 12)
+  // Longer tube so the muzzle reads past the glacis; pivot at cupola center.
+  const t = cv(28, 12)
   const h = t.getContext("2d")!
   rects(h, "#4a4840", [[0, 2, 12, 8]])
-  rects(h, "#1a1a18", [[12, 5, 12, 2]])
-  return { body: b, turret: t, pivot: [6, 6], mount: [-1, 0] }
+  rects(h, "#1a1a18", [[12, 5, 16, 2]])
+  return { body: b, turret: t, pivot: [6, 6], mount: [0, -1] }
 }
 
 function mlrs(): VehArt {

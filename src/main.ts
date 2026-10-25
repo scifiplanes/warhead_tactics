@@ -2,7 +2,9 @@ import { CARDS, DECK_CAP, callSign, card, isHero, researchCost, type CardDef } f
 import {
   applyWear,
   bankFinds,
+  bootSalvage,
   cardCost,
+  costLabel,
   deployCost,
   ensureMap,
   load,
@@ -11,6 +13,7 @@ import {
   save,
   settleHeroes,
   stockOf,
+  unlockExtracted,
   type Profile,
 } from "./meta/profile"
 import { fitHexSize, hexCorners, layoutHex, type FieldNode } from "./meta/worldmap"
@@ -19,13 +22,15 @@ import {
   makeRun,
   step,
   takeBursts,
+  takePops,
   balanceLine,
   commitMap,
+  recoveredCards,
   type Commands,
   type Diff,
   type World,
 } from "./sim/world"
-import { audioPrefs, setAudio, thuds, unlockAudio } from "./view/audio"
+import { audioPrefs, pops, setAudio, thuds, unlockAudio } from "./view/audio"
 import { burstsToParticles, ditherPrefs, draw, hpColor, paintDither, setDither, type Dither, type Particle } from "./view/draw"
 import { hexTerrain, preview } from "./view/sprites"
 
@@ -55,6 +60,8 @@ const stick = document.querySelector<HTMLElement>("#stick")!
 const knob = document.querySelector<HTMLElement>("#knob")!
 
 const profile: Profile = load()
+bootSalvage(profile)
+save(profile)
 const deck: string[] = []
 const keys = new Set<string>()
 let world: World | null = null
@@ -161,7 +168,9 @@ function paintResearch() {
 }
 
 function paintDeck() {
-  const cost = deployCost(deck, profile.wear)
+  bootSalvage(profile)
+  const salvage = profile.salvage ?? {}
+  const cost = deployCost(deck, profile.wear, salvage)
   deckCount.textContent = `${deck.length} / ${DECK_CAP}`
   const bank = document.querySelector("#bank")
   if (bank) bank.textContent = `CREDITS ${profile.credits}`
@@ -184,8 +193,12 @@ function paintDeck() {
       const b = document.createElement("b")
       b.textContent = row.name
       const small = document.createElement("small")
-      const price = cardCost(row.id, profile.wear[row.id] ?? 0, count(row.id))
-      small.textContent = price ? `${price} CR` : ""
+      small.textContent = costLabel(
+        row.id,
+        profile.wear[row.id] ?? 0,
+        count(row.id),
+        salvage[row.id] ?? 0,
+      )
       const n = document.createElement("span")
       n.className = "n"
       const stock = stockOf(profile, row.id)
@@ -445,7 +458,9 @@ document.querySelector("#fill")!.addEventListener("click", () => {
   while (deck.length < DECK_CAP && pool.length && guard++ < 80) {
     const row = pool[(Math.random() * pool.length) | 0]
     if (count(row.id) >= stockOf(profile, row.id)) continue
-    if (deployCost(deck, profile.wear) + cardCost(row.id, profile.wear[row.id] ?? 0, count(row.id)) > profile.credits) continue
+    const salv = profile.salvage ?? {}
+    const add = cardCost(row.id, profile.wear[row.id] ?? 0, count(row.id), salv[row.id] ?? 0)
+    if (deployCost(deck, profile.wear, salv) + add > profile.credits) continue
     deck.push(row.id)
   }
   paintDeck()
@@ -707,7 +722,7 @@ function warn(text: string) {
 
 function start(asBot: boolean) {
   const wear = { ...profile.wear }
-  const cost = deployCost(deck, wear)
+  const cost = deployCost(deck, wear, profile.salvage ?? {})
   if (cost > profile.credits) {
     warn(`SHORT ${cost - profile.credits} CR`)
     return
@@ -843,6 +858,12 @@ function paintHud(w: World) {
     tag.textContent = "KIT"
     kitEl.append(tag)
     for (const id of kitIds(lead.gears)) kitEl.append(preview(id, 16))
+    if (lead.ammoMax > 0) {
+      const mag = document.createElement("span")
+      mag.className = "tag"
+      mag.textContent = lead.reloadT > 0 && lead.ammo <= 0 ? "RELOAD" : `${lead.ammo}`
+      kitEl.append(mag)
+    }
   }
   rosterEl.replaceChildren()
   for (const b of people) {
@@ -928,6 +949,7 @@ function frame(now: number) {
     ability = null
     const hits = takeBursts(world)
     thuds(hits)
+    pops(takePops(world))
     burstsToParticles(parts, hits)
     if (world.phase !== "run") finish()
   }
@@ -961,16 +983,30 @@ function finish() {
   commitMap(world)
   profile.map = world.map
   settleHeroes(profile, world)
-  const freshFinds = bankFinds(profile, world.found)
-  if (freshFinds.length) {
-    const names = freshFinds.map((id) => {
-      try {
-        return card(id).name
-      } catch {
-        return id
-      }
-    })
-    rows.push(["RESEARCH", names.join(" · ")])
+  if (world.phase === "win") {
+    const unlocked = unlockExtracted(profile, world.found, recoveredCards(world))
+    if (unlocked.length) {
+      const names = unlocked.map((id) => {
+        try {
+          return card(id).name
+        } catch {
+          return id
+        }
+      })
+      rows.push(["LOADOUT", names.join(" · ")])
+    }
+  } else {
+    const freshFinds = bankFinds(profile, world.found)
+    if (freshFinds.length) {
+      const names = freshFinds.map((id) => {
+        try {
+          return card(id).name
+        } catch {
+          return id
+        }
+      })
+      rows.push(["RESEARCH", names.join(" · ")])
+    }
   }
   save(profile)
   paintDeck()

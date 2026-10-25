@@ -2,6 +2,23 @@
 
 Newest first. Older → `docs/changelog-archive.md`.
 
+- **2026-10-25 Fix:** free extract stock reads RECOVERED; only finds hauled onto the craft count (abandoned sentry no longer free). `src/meta/profile.ts` `src/sim/world.ts` `src/main.ts`
+- **2026-10-25 Fix:** pre-salvage extract unlocks get one free RECOVERED deploy on load (deck was still showing CR). `src/meta/profile.ts` `src/main.ts`
+- **2026-10-25 Feat:** extracted finds deploy free as RECOVERED (extra copies still paid); gear pickups fit the nearest squad body. `src/meta/profile.ts` `src/main.ts` `src/sim/world.ts`
+- **2026-10-25 Fix:** IFV and other short hull guns reach farther; extract unlocks finds for loadout (wipe still research-only); exit/LZ/stash holds keep progress while any squad body remains. `src/content/catalog.ts` `src/meta/profile.ts` `src/sim/world.ts` `src/main.ts`
+- **2026-10-25 Fix:** MBT reaches past the tank, muzzle flash sits on the tube tip; path travel keeps crewed hulls with their riders. `src/content/catalog.ts` `src/view/draw.ts` `src/view/sprites.ts` `src/sim/world.ts`
+- **2026-10-25 Fix:** CAS birds ingress from off-screen and fly out after sortie (no grounded WRECK); slot still cools from the press. `src/sim/world.ts`
+- **2026-10-25 Fix:** scar no longer hard-skips horde (cleared start nodes stayed empty); fold only scars when kills happened and floors a residue trickle. `src/sim/world.ts` `src/meta/worldmap.ts`
+- **2026-10-25 Feat:** reload telegraphs diegetically — FootMode reload (tipped gun + mag chip), sustained steel RELOAD brackets, progress bar. `src/view/anim.ts` `src/view/draw.ts` `docs/design/anim.md`
+- **2026-10-25 Feat:** powder guns run magazines and auto-reload when empty; mag cards add rounds; kit strip shows count/RELOAD. `src/content/catalog.ts` `src/sim/world.ts` `src/view/draw.ts` `src/main.ts`
+- **2026-10-25 Feat:** section powder cracks a muffled brass pop (hip and set); early rust tasers flash a pale zig-zag instead of oxide spit. `src/view/audio.ts` `src/content/muzzle.ts` `src/sim/world.ts` `src/main.ts`
+- **2026-10-25 Fix:** early Rust tasers hitch briefly and do not refresh into a fire-lock (shock was longer than cooldown). `src/content/catalog.ts` `src/sim/world.ts`
+- **2026-10-25 Feat:** early Rust (drone, scoot, kite) close with short tasers that stun instead of bolting; guns stay on later walkers and rollers. `src/content/catalog.ts` `src/sim/world.ts`
+- **2026-10-25 Fix:** HEX siege fires on the move (was stuck waiting on a full set); early rust powder flashes are smaller oxide dots so they read apart from section brass. `src/content/catalog.ts` `src/content/muzzle.ts` `src/sim/world.ts`
+- **2026-10-25 Fix:** hostile muzzle flashes no longer grant day-range combat sight (section flashes still do, like beams). `src/sim/world.ts`
+- **2026-10-25 Fix:** hip-fire only while moving (standing still sets clean). `src/sim/world.ts` `src/content/catalog.ts`
+- **2026-10-25 Feat:** medium guns (rifle, shotgun) hip-fire on the move — miss and semi RoF penalty; set stance stays clean. `src/content/catalog.ts` `src/sim/world.ts`
+- **2026-10-25 Fix:** muzzle flashes follow the live stamp/turret tip and barrel dir (not a stale world aim), including hull guns. `src/view/draw.ts` `src/view/sprites.ts`
 - **2026-10-25 Design:** HEX scout/line/siege read as bipedal mechs (legs + torso + arm gun), not tracked hulls. `src/view/sprites.ts`
 - **2026-10-25 Fix:** match CR shows run earnings only; LZ extract no longer path-travels (LZ clears exits; hold LZ never travels). `src/main.ts` `src/sim/world.ts`
 - **2026-10-25 Feat:** muzzle flashes are night light sources — punch the veil, warm bloom, and briefly light combat sight. `src/content/muzzle.ts` `src/sim/world.ts` `src/view/draw.ts`
@@ -24,18 +41,3 @@ Newest first. Older → `docs/changelog-archive.md`.
 - **2026-10-24 Feat:** pickup snaps harder — gold flash, named bracket, gold toast; kit strip pulses on change. `src/sim/world.ts` `src/view/draw.ts` `src/main.ts` `index.html`
 - **2026-10-24 Feat:** gear crates show their mark and a name plate (inbound too); the HUD kit strip and roster show fitted loadout. `src/view/draw.ts` `src/view/sprites.ts` `src/main.ts` `index.html`
 - **2026-10-24 Feat:** Tracker body kit paints blank brackets (and edge pins) on every living hostile while the wearer lives, through night and smoke. `src/content/catalog.ts` `src/sim/world.ts` `src/view/draw.ts` `src/view/sprites.ts`
-- **2026-10-23 Fix:** tracers and night beams leave the rotated gun tip (deploy / aim-up), not a flat body offset. `src/view/sprites.ts` `src/view/draw.ts` `src/sim/world.ts`
-- **2026-10-23 Feat:** soft modules on every foot hostile, hover sway, drawn brace tip, hit/stun impulse, soft+biped together. `src/view/anim.ts` `docs/design/anim.md`
-- **2026-10-23 Feat:** stretch plant loop for biped feet and soft tips, hips→chest→head lag, idle breath; hostiles and infantry. `src/view/anim.ts` `docs/design/anim.md`
-- **2026-10-23 Feat:** foot modes (deploy/fire/stun/crawl/limp), soft tip goals, hull bob and turret lag, shared gun muzzle reach. `src/view/anim.ts` `src/view/draw.ts` `src/content/muzzle.ts` `docs/design/anim.md`
-- **2026-10-23 Fix:** tracers and night beams leave from the gun tip, not the head. `src/sim/world.ts` `src/view/draw.ts`
-- **2026-10-23 Fix:** gun wedge rotates to `hdg` toward the fire target, not a short-range guess. `src/sim/world.ts` `src/view/sprites.ts` `src/view/anim.ts` `src/view/draw.ts`
-- **2026-10-23 Feat:** feet and soft tips plant toward nearby ruins, wrecks, posts, and teeth. `src/view/anim.ts` `src/view/draw.ts`
-- **2026-10-23 Feat:** view foot system — 161 layers, path gait, soft chains on weird hostiles/walkers, sagging airdrop cables. `src/view/anim.ts` `src/view/sprites.ts` `src/view/draw.ts`
-- **2026-10-22 Fix:** corpses, parts, and other ground marks draw under living bodies. `src/view/draw.ts`
-- **2026-10-22 Feat:** deck body gear outfits the Lead at step-off and rides later unit or hull airdrops already fitted; laser sight joins the optic slot. `src/sim/world.ts` `src/content/catalog.ts` `src/view/sprites.ts`
-- **2026-10-22 Feat:** composite goat/crow screens, holdout field finds, named shells Vos/Sten/Tave, distinct coil/bloom/fog/amalgam stacks, and rust sleeper hulls. `src/sim/world.ts` `src/content/catalog.ts` `src/view/sprites.ts`
-- **2026-10-22 Fix:** ruins are high-angle foundation chunks (L/U/slab/container) with top face and thickness — not flat wall strips. `src/view/sprites.ts`
-- **2026-10-22 Design:** ruins and props use 161 high-angle mass — foreshortened trees/wire/wrecks/posts/teeth/crate, contact blobs, edge shade. `src/view/sprites.ts`
-- **2026-10-22 Design:** lock 161 high-angle stack for infantry and NPCs — foreshortened coat mass, ferals dirtier, walkers/drones same language; gun wedge on friendlies. `src/view/sprites.ts`
-- **2026-10-22 Design:** richer mud (wet patches, ruts, ash), 1px edge shade on soldier and hull bodies, ground contact shadows for infantry/vehicles/props, heavier crater/burn/splat marks, distinct hull families (truck, MBT, MLRS, HEX, UGV, MRAP), walker single dark optic, dirtier corpse palette. `src/view/sprites.ts` `src/view/draw.ts`
