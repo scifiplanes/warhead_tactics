@@ -535,6 +535,62 @@ test("holding the path opens a harder field", () => {
   expect(w.bodies.some((b) => b.id === foe.id)).toBe(false)
 })
 
+test("casualty leaves formation holes instead of recentering the file", () => {
+  const w = quiet()
+  w.gap = GAP_MAX
+  w.ax = 0
+  w.ay = 0
+  const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
+  lead.x = 0
+  lead.y = 0
+  const a = spawnBody(w, { kind: "aegis", x: 4, y: 0, inSection: true })
+  const b = spawnBody(w, { kind: "aegis", x: 0, y: 4, inSection: true })
+  const c = spawnBody(w, { kind: "aegis", x: -4, y: 0, inSection: true })
+  go(w, IDLE, 6)
+  expect(a.formSlot).toBeGreaterThanOrEqual(0)
+  expect(b.formSlot).toBeGreaterThanOrEqual(0)
+  expect(c.formSlot).toBeGreaterThanOrEqual(0)
+  expect(w.formN).toBe(3)
+  const before = [a, b, c].map((u) => ({ id: u.id, x: u.x, y: u.y, slot: u.formSlot }))
+  b.hp = 0
+  step(w, IDLE, 1 / 30)
+  expect(b.alive).toBe(false)
+  expect(w.formN).toBe(3)
+  go(w, IDLE, 3)
+  for (const u of [a, c]) {
+    const prev = before.find((p) => p.id === u.id)!
+    expect(u.formSlot).toBe(prev.slot)
+    expect(Math.hypot(u.x - prev.x, u.y - prev.y)).toBeLessThan(1.2)
+  }
+})
+
+test("Lead death keeps the file on the stick instead of the new boss", () => {
+  const w = quiet()
+  w.gap = GAP_MAX
+  w.ax = 0
+  w.ay = 0
+  const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
+  lead.x = 0
+  lead.y = 0
+  const ally = spawnBody(w, { kind: "aegis", x: 6, y: 0, inSection: true })
+  const other = spawnBody(w, { kind: "aegis", x: -6, y: 0, inSection: true })
+  go(w, IDLE, 6)
+  const stickX = w.ax
+  const stickY = w.ay
+  const ox = other.x
+  const oy = other.y
+  const otherSlot = other.formSlot
+  lead.hp = 0
+  step(w, IDLE, 1 / 30)
+  expect(lead.alive).toBe(false)
+  go(w, IDLE, 2)
+  // Stick stays; wingmate keeps slot. Acting boss may walk in to the stick.
+  expect(Math.hypot(w.ax - stickX, w.ay - stickY)).toBeLessThan(0.2)
+  expect(other.formSlot).toBe(otherSlot)
+  expect(Math.hypot(other.x - ox, other.y - oy)).toBeLessThan(1.2)
+  expect(ally.alive).toBe(true)
+})
+
 test("exit hold keeps progress when the Lead dies but an ally stays", () => {
   const w = quiet()
   const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
@@ -1128,9 +1184,10 @@ test("a field commits to one ground's cover", () => {
 
 test("deck cards wait in the airdrop queue", () => {
   const w = makeRun(1, ["aegis", "medic", "plate"])
-  const kinds = w.bodies.filter((b) => b.inSection).map((b) => b.kind)
-  expect(kinds).toEqual(["cell_rifle"])
-  expect(w.deckQueue.slice().sort()).toEqual(["aegis", "medic", "plate"])
+  const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
+  expect(w.bodies.filter((b) => b.inSection).map((b) => b.kind)).toEqual(["cell_rifle"])
+  expect(lead.gears).toContain("plate")
+  expect(w.deckQueue.slice().sort()).toEqual(["aegis", "medic"])
 })
 
 test("airdrops land a walk apart", () => {
@@ -1174,6 +1231,30 @@ test("deck guns and optics still outfit the Lead when a hull is also queued", ()
     expect(lead.gears, `seed ${seed}`).toContain("plate")
     expect(w.deckQueue, `seed ${seed}`).toEqual(["mlrs"])
   }
+})
+
+test("a second deck primary rides the next airdrop instead of replacing the Lead gun", () => {
+  const w = makeRun(1, ["smg", "shotgun", "medic"])
+  const lead = w.bodies.find((b) => b.kind === STARTER)!
+  expect(lead.gears).toContain("smg")
+  expect(lead.gears.includes("shotgun")).toBe(false)
+  expect(w.gearHold.some((g) => g.id === "shotgun")).toBe(true)
+  w.nextDrop = 0
+  go(w, IDLE, 0.15)
+  expect(w.inbound[0].cardId).toBe("medic")
+  expect(w.inbound[0].kit.map((k) => k.id)).toContain("shotgun")
+  go(w, IDLE, 3.2)
+  const medic = w.bodies.find((b) => b.kind === "medic")!
+  expect(medic.gears).toContain("shotgun")
+  expect(lead.gears).toContain("smg")
+})
+
+test("primary and secondary deck guns both fit the Lead", () => {
+  const w = makeRun(1, ["smg", "knife"])
+  const lead = w.bodies.find((b) => b.kind === STARTER)!
+  expect(lead.gears).toContain("smg")
+  expect(lead.gears).toContain("knife")
+  expect(w.gearHold).toEqual([])
 })
 
 test("a unit airdrops wearing deck gear", () => {

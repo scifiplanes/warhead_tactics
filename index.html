@@ -83,6 +83,90 @@
         .world-side { position: static; }
       }
       .lede { margin: 8px 0 0; max-width: 62ch; color: var(--muted); line-height: 1.45; }
+      #splash {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px 16px;
+        overflow: auto;
+      }
+      #splash.hidden { display: none; }
+      .bbs {
+        width: min(520px, 100%);
+        background: #000;
+        border: 2px solid var(--rule);
+        outline: 1px solid #5a5854;
+        outline-offset: -6px;
+        padding: 18px 20px 16px;
+        text-align: center;
+      }
+      .bbs .brand {
+        font-size: clamp(28px, 7vw, 40px);
+        line-height: 0.95;
+        letter-spacing: 0.12em;
+        color: var(--gold);
+        margin: 0;
+      }
+      .bbs .sso { margin: 8px 0 0; color: var(--gold); font-size: 13px; letter-spacing: 0.04em; }
+      .bbs .node, .bbs .proto { margin: 4px 0 0; color: var(--muted); font-size: 11px; letter-spacing: 0.03em; }
+      .bbs .rule {
+        margin: 12px 0;
+        color: var(--rule);
+        letter-spacing: 0.08em;
+        font-size: 11px;
+        line-height: 1;
+        overflow: hidden;
+        white-space: nowrap;
+      }
+      #crest {
+        display: block;
+        width: 168px;
+        height: 168px;
+        margin: 0 auto;
+        image-rendering: pixelated;
+      }
+      .bbs .lore {
+        margin: 0;
+        text-align: left;
+        color: var(--ink);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+      .bbs .tips {
+        margin: 12px 0 0;
+        padding: 0;
+        list-style: none;
+        text-align: left;
+      }
+      .bbs .tips li {
+        position: relative;
+        margin: 0 0 8px;
+        padding-left: 14px;
+        color: var(--ink);
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      .bbs .tips li::before {
+        content: "·";
+        position: absolute;
+        left: 0;
+        color: var(--gold);
+      }
+      .bbs .tips li strong { color: var(--gold); font-weight: normal; }
+      .bbs .tips-tag {
+        margin: 14px 0 6px;
+        color: var(--gold);
+        font-size: 12px;
+        letter-spacing: 0.06em;
+        text-align: left;
+      }
+      .bbs .foot {
+        margin: 14px 0 0;
+        color: var(--muted);
+        font-size: 10px;
+        letter-spacing: 0.04em;
+      }
+      #enter-board { margin-top: 14px; }
       #warn { color: var(--danger); min-height: 1.2em; }
       #warn:empty { display: none; }
       .builder { display: grid; grid-template-columns: 1fr 320px; gap: 22px; align-items: start; }
@@ -337,7 +421,30 @@
   </head>
   <body>
     <canvas id="view"></canvas>
-    <section id="deck" class="screen">
+    <section id="splash" class="screen">
+      <div class="bbs">
+        <h1 class="brand">HEXAGON</h1>
+        <p class="sso">Strategic Security Operations</p>
+        <p class="node">NODE: WARHEAD TACTICS // SYSOP: HOMUNCULUS</p>
+        <p class="proto">A United Earth certified decentralised protocol.</p>
+        <p class="rule" aria-hidden="true">========================================</p>
+        <canvas id="crest" width="168" height="168" aria-hidden="true"></canvas>
+        <p class="rule" aria-hidden="true">----------------------------------------</p>
+        <p class="lore">
+          In the ruins of muscovy, three Uluses annihilated each other. What remains is residue — rad, burn-chem, bio, and AI-oxide —
+          and SSO salvage crawling the scar. You field a section, haul what fits the craft, and leave the rest to the mud.
+        </p>
+        <p class="tips-tag">FIELD NOTES</p>
+        <ul class="tips">
+          <li><strong>Stand still to set your gun.</strong> On the move, medium rifles hip-fire — more miss, slower semi.</li>
+          <li>Hold a path to travel, or the gold LZ to arm the flare and extract.</li>
+          <li>Deck cards airdrop one by one. Group closes the file; spread opens it.</li>
+        </ul>
+        <button id="enter-board" class="primary" type="button">ENTER BOARD</button>
+        <p class="foot">CARRIER DETECTED // TAP OR PRESS ENTER</p>
+      </div>
+    </section>
+    <section id="deck" class="screen hidden">
       <div class="menu">
         <h1>WARHEAD TACTICS</h1>
         <div class="menu-tabs" role="tablist">

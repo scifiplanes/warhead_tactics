@@ -2,6 +2,12 @@
 
 Moved from `docs/changelog.md` when that file outgrows its cap.
 
+- **2026-10-25 Feat:** per-weapon muzzle flashes at the gun tip (shape marks rifle/SMG/shotgun/sniper/rail/MG/lob; blades and bows silent). `src/content/muzzle.ts` `src/sim/world.ts` `src/view/draw.ts`
+- **2026-10-25 Fix:** WORLD start node reads LZ (not HOME); map mark is LZ. `src/main.ts`
+- **2026-10-25 Feat:** WORLD is a pointy-top hex disk radius 7 (169 cells) with painted ground cell art; paths follow hex bearings. `src/meta/worldmap.ts` `src/view/sprites.ts` `src/main.ts`
+- **2026-10-25 Feat:** main menu WORLD tab reads the campaign field graph; start LZ marked with gold ring. `index.html` `src/main.ts`
+- **2026-10-25 Feat:** campaign field graph with multi-path travel, residue eco (feral/rust/bio/oxide/scar), and light loot/sleeper cache; deck airdrops stay run-scoped. `src/meta/worldmap.ts` `src/meta/profile.ts` `src/sim/world.ts` `src/view/draw.ts`
+- **2026-10-25 Fix:** remove hover/billow/trail soft chains that drew detached tips beside NPC stamps; clamp remaining soft draw to 6px of body. `src/view/anim.ts` `src/view/draw.ts`
 - **2026-10-25 Fix:** walk gait from stamp swap only — no ±1px leg-layer slide (read as slapstick on 13px figures); subtler walk stride. `src/view/anim.ts` `src/view/sprites.ts`
 - **2026-10-25 Fix:** stop NPC part offsets — flesh draws solid (no head/coat/leg split); drop soft trail/gait on stamped-leg bipeds/walkers; soldier hip rows no longer mix coat+leg keys. `src/view/sprites.ts` `src/view/anim.ts`
 - **2026-10-25 Fix:** restore original buffer footprints vs HEAD (soldier 16×13, jeep 18×11, tank 24×16, …) so field sizes/distances match; densify only inside those grids; zoom 4.5/6. `src/view/sprites.ts` `docs/design/art.md`

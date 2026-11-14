@@ -113,6 +113,8 @@ export type Body = {
   /** Stun seconds this body applies on a landed hit (rust tasers). */
   shock: number
   sortieT: number
+  /** Stable file index around the stick; -1 = unassigned. Holes stay open on KIA. */
+  formSlot: number
   parts: Limb[]
   name: string
   heroId: string
@@ -217,6 +219,8 @@ export type World = {
   ay: number
   file: "loose" | "tight"
   gap: number
+  /** High-water ring size for slot(); shrinks only when the file reforms tight. */
+  formN: number
   autoBoard: boolean
   bodies: Body[]
   props: Prop[]
@@ -663,6 +667,7 @@ export function spawnBody(w: World, spec: Spawn): Body {
     alive: true,
     fired: 0,
     moved: false,
+    formSlot: -1,
     ramCd: 0,
     bumpCd: 0,
     touch: 0,
@@ -761,6 +766,7 @@ function blank(seed: number): World {
     ay: 0,
     file: "loose",
     gap: GAP_MAX,
+    formN: 0,
     autoBoard: false,
     bodies: [],
     props: [],
@@ -962,7 +968,35 @@ function orders(w: World, cmd: Commands, dt: number) {
 }
 
 function syncFile(w: World) {
+  const was = w.file
   w.file = w.gap === 0 ? "tight" : "loose"
+  if (was !== "tight" && w.file === "tight") reformFile(w)
+}
+
+function claimForm(w: World, u: Body) {
+  if (u.formSlot >= 0) return
+  const used = new Set<number>()
+  for (const b of w.bodies) {
+    if (!b.alive || !b.inSection || b.vehicle || b.follow || b.formSlot < 0) continue
+    used.add(b.formSlot)
+  }
+  let i = 0
+  while (used.has(i)) i++
+  u.formSlot = i
+  if (i + 1 > w.formN) w.formN = i + 1
+}
+
+/** Pack living ring slots only when the file closes tight — never on KIA. */
+function reformFile(w: World) {
+  const boss = commandUnit(w)
+  const hull = commandHull(w)
+  const bossOnFoot = boss && !hull ? boss.id : -1
+  if (boss) boss.formSlot = -1
+  const ring = feet(w).filter((u) => u.boardVeh === null && u.id !== bossOnFoot)
+  ring.forEach((u, i) => {
+    u.formSlot = i
+  })
+  w.formN = ring.length
 }
 
 function fastestOpen(list: Body[]): Body | null {
@@ -1087,7 +1121,8 @@ function drive(w: World, cmd: Commands, dt: number) {
     w.ax = clamp(w.ax + nx * pace * dt, -MAP, MAP)
     w.ay = clamp(w.ay + ny * pace * dt, -MAP, MAP)
   }
-  if (boss && !hull && !boss.air) {
+  // Leash stick to the named Lead only. After a Lead KIA the stick stays put so the file does not yank onto the new boss.
+  if (boss && !hull && !boss.air && boss.id === w.commander) {
     const lx = w.ax - boss.x
     const ly = w.ay - boss.y
     const ld = Math.hypot(lx, ly)
@@ -1101,13 +1136,18 @@ function drive(w: World, cmd: Commands, dt: number) {
   if (boss?.follow && !boss.air && !hull && !loose.includes(boss)) loose.unshift(boss)
   const open = Math.max(0, Math.min(1, w.gap / GAP_MAX))
   const radius = 1.15 + 6.8 * open
-  const core = hull ?? boss
+  /** Stick (or boarded hull) is the file center — not the acting boss body — so a Lead KIA does not yank the ring. */
+  const coreX = hull?.x ?? w.ax
+  const coreY = hull?.y ?? w.ay
   const bossOnFoot = boss && !hull ? boss.id : -1
-  const ringN = loose.filter((u) => u.boardVeh === null && u.id !== bossOnFoot).length
-  let ring = 0
+  for (const u of loose) {
+    if (u.boardVeh !== null || u.id === bossOnFoot) continue
+    claimForm(w, u)
+  }
+  const formN = Math.max(1, w.formN)
   loose.forEach((u) => {
-    let tx = core?.x ?? w.ax
-    let ty = core?.y ?? w.ay
+    let tx = coreX
+    let ty = coreY
     if (u.boardVeh !== null) {
       const v = w.bodies.find((b) => b.id === u.boardVeh && b.alive)
       if (v) {
@@ -1118,9 +1158,9 @@ function drive(w: World, cmd: Commands, dt: number) {
     } else if (u.id === bossOnFoot) {
       tx = w.ax
       ty = w.ay
+      u.formSlot = -1
     } else {
-      const off = ringN <= 1 ? [radius, 0] : slot(ring, ringN, radius)
-      ring++
+      const off = formN <= 1 ? [radius, 0] : slot(u.formSlot, formN, radius)
       tx += off[0]
       ty += off[1]
     }
@@ -1420,7 +1460,7 @@ function landInbound(w: World, dt: number) {
       const drop = placeDrop(w, f.cardId, f.x, f.y, f.cost)
       if (f.kit.length && drop.bodyId) {
         const body = w.bodies.find((b) => b.id === drop.bodyId)
-        if (body) dress(w, body, f.kit)
+        if (body) for (const left of dress(w, body, f.kit)) w.gearHold.push(left)
       }
     }
     burst(w, f.x, f.y, "dust")
@@ -1454,7 +1494,7 @@ function gearFitsHost(w: World, hostId: string, gearId: string): boolean {
   return !veh
 }
 
-/** Lead steps off wearing leading body gear; non-fitting gear waits in hold. */
+/** Lead steps off wearing leading body gear; surplus hands/slots wait in hold for airdrops. */
 function outfitLead(w: World) {
   const lead = w.bodies.find((b) => b.id === w.commander)
   if (!lead) return
@@ -1466,7 +1506,7 @@ function outfitLead(w: World) {
     if (gearFitsHost(w, STARTER, id)) kit.push({ id, cost })
     else w.gearHold.push({ id, cost })
   }
-  dress(w, lead, kit)
+  for (const left of dress(w, lead, kit)) w.gearHold.push(left)
 }
 
 function takeFitting(w: World, hostId: string): KitItem[] {
@@ -1492,7 +1532,7 @@ function pullDrop(w: World): { cardId: string; cost: number; kit: KitItem[] } | 
   }
   if (!w.deckQueue.length) {
     const lead = w.bodies.find((b) => b.id === w.commander && b.alive && b.inSection)
-    if (lead) dress(w, lead, takeFitting(w, STARTER))
+    if (lead) for (const left of dress(w, lead, takeFitting(w, STARTER))) w.gearHold.push(left)
     const orphan = w.gearHold.shift()
     if (!orphan) return null
     return { cardId: orphan.id, cost: orphan.cost, kit: [] }
@@ -1543,13 +1583,46 @@ function loadout(w: World, b: Body, id: string, cost = 0): boolean {
   return true
 }
 
-function dress(w: World, b: Body, kit: KitItem[]) {
+/** True if this hand/slot/body piece is free (starter rifle may be replaced by a deck primary). */
+function kitSlotOpen(b: Body, id: string): boolean {
+  const c = card(id)
+  if (c.gun) {
+    if (b.vehicle || b.android || b.follow) return false
+    if (handOf(id) === "secondary") return !secondaryId(b)
+    const prev = primaryId(b)
+    if (!prev) return true
+    return prev === "rifle" && !(b.gearPay[prev] > 0)
+  }
+  if (c.slot) {
+    if (!canTakeAttach(b)) return false
+    return !b.gears.some((have) => card(have).slot === c.slot)
+  }
+  return !b.gears.includes(id)
+}
+
+/**
+ * Fit kit onto a body without eating surplus. Occupied primary/secondary/attach/body
+ * pieces are returned for the next soldier (gearHold / later airdrop).
+ */
+function dress(w: World, b: Body, kit: KitItem[]): KitItem[] {
   const guns = kit.filter((k) => card(k.id).gun)
   const body = kit.filter((k) => !card(k.id).gun && !card(k.id).slot)
   const bits = kit.filter((k) => card(k.id).slot)
+  const left: KitItem[] = []
   let n = 0
-  for (const item of [...guns, ...body, ...bits]) if (loadout(w, b, item.id, item.cost)) n++
-  if (n) toast(w, n === 1 ? `${card(kit[0].id).name} fitted` : `Kit ×${n}`, "gear")
+  let first = ""
+  for (const item of [...guns, ...body, ...bits]) {
+    if (!kitSlotOpen(b, item.id)) {
+      left.push(item)
+      continue
+    }
+    if (loadout(w, b, item.id, item.cost)) {
+      n++
+      if (!first) first = item.id
+    } else left.push(item)
+  }
+  if (n) toast(w, n === 1 ? `${card(first).name} fitted` : `Kit ×${n}`, "gear")
+  return left
 }
 
 function drops(w: World, dt: number) {
@@ -2528,6 +2601,7 @@ function liftOut(w: World, b: Body) {
   b.alive = false
   b.inSection = false
   b.boarded = null
+  b.formSlot = -1
 }
 
 function flare(w: World, _cmd: Commands, dt: number) {
@@ -3750,6 +3824,7 @@ function kill(w: World, b: Body) {
   if (!b.alive) return
   b.alive = false
   b.hp = 0
+  b.formSlot = -1
   if (b.side === "player" && b.kind !== "sentry_gun") {
     w.lost++
     tag(w, b.x, b.y, "KIA", "kia")

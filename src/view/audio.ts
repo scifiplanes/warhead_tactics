@@ -2,6 +2,10 @@ const KEY = "warhead-tactics-audio"
 
 export type AudioPrefs = { vol: number; mute: boolean }
 
+type WebkitWindow = Window & {
+  webkitAudioContext?: typeof AudioContext
+}
+
 export function loadAudio(): AudioPrefs {
   try {
     const raw = localStorage.getItem(KEY)
@@ -28,6 +32,7 @@ let bus: GainNode | null = null
 let noise: AudioBuffer | null = null
 let last = 0
 let lastPop = 0
+let primed = false
 
 export function audioPrefs() {
   return prefs
@@ -39,14 +44,17 @@ export function setAudio(next: AudioPrefs) {
   if (bus) bus.gain.value = prefs.mute ? 0 : prefs.vol * 0.7
 }
 
-export function unlockAudio() {
-  const c = context()
-  if (c.state === "suspended") void c.resume()
+function AudioCtor(): typeof AudioContext | null {
+  const w = window as WebkitWindow
+  return window.AudioContext || w.webkitAudioContext || null
 }
 
-function context() {
-  if (ctx && bus) return ctx
-  ctx = new AudioContext()
+/** Build graph only from a user gesture — never from rAF (iOS stays suspended). */
+function ensureGraph(): AudioContext | null {
+  if (ctx && bus && noise) return ctx
+  const Ctor = AudioCtor()
+  if (!Ctor) return null
+  ctx = new Ctor()
   const low = ctx.createBiquadFilter()
   low.type = "lowpass"
   low.frequency.value = 220
@@ -61,10 +69,49 @@ function context() {
   return ctx
 }
 
+function tickPrime() {
+  if (!ctx || !bus || !noise || primed) return
+  const now = ctx.currentTime
+  const grit = ctx.createBufferSource()
+  const veil = ctx.createGain()
+  grit.buffer = noise
+  veil.gain.value = 0.0001
+  grit.connect(veil)
+  veil.connect(bus)
+  grit.start(now)
+  grit.stop(now + 0.02)
+  primed = true
+}
+
+function wake(): AudioContext | null {
+  const c = ensureGraph()
+  if (!c) return null
+  tickPrime()
+  const state = c.state as string
+  if (state === "suspended" || state === "interrupted") void c.resume()
+  return c
+}
+
+/** Call from pointer/touch/click. Primes iOS with a near-silent buffer in-gesture. */
+export function unlockAudio() {
+  wake()
+}
+
+function live(): AudioContext | null {
+  if (!ctx || !bus || !noise) return null
+  const state = ctx.state as string
+  if (state === "suspended" || state === "interrupted") {
+    void ctx.resume()
+    return null
+  }
+  if (ctx.state !== "running") return null
+  return ctx
+}
+
 export function thuds(bursts: { tint: string }[]) {
   if (!bursts.length || prefs.mute || prefs.vol <= 0) return
-  const c = context()
-  if (!bus || !noise || c.state !== "running") return
+  const c = live()
+  if (!c || !bus || !noise) return
   const heavy = bursts.some((b) => b.tint === "flash" || b.tint === "dust")
   const now = c.currentTime
   if (now - last < (heavy ? 0.06 : 0.16)) return
@@ -95,8 +142,8 @@ export function thuds(bursts: { tint: string }[]) {
 /** Muffled brass crack for section powder (hip and set). Quieter than hit thuds. */
 export function pops(n: number) {
   if (n <= 0 || prefs.mute || prefs.vol <= 0) return
-  const c = context()
-  if (!bus || !noise || c.state !== "running") return
+  const c = live()
+  if (!c || !bus || !noise) return
   const now = c.currentTime
   if (now - lastPop < 0.05) return
   lastPop = now

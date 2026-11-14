@@ -37,6 +37,7 @@ import { hexTerrain, preview } from "./view/sprites"
 
 const canvas = document.querySelector<HTMLCanvasElement>("#view")!
 const ctx = canvas.getContext("2d")!
+const splashEl = document.querySelector<HTMLElement>("#splash")!
 const deckEl = document.querySelector<HTMLElement>("#deck")!
 const cardsEl = document.querySelector<HTMLElement>("#cards")!
 const deckList = document.querySelector<HTMLElement>("#deckList")!
@@ -82,8 +83,138 @@ let lastKitSig: string | null = null
 let settled = false
 const parts: Particle[] = []
 
+function paintCrest() {
+  const el = document.querySelector<HTMLCanvasElement>("#crest")
+  if (!el) return
+  const g = el.getContext("2d")
+  if (!g) return
+  const w = el.width
+  const h = el.height
+  const cx = w / 2
+  const cy = h / 2
+  const ink = "#a8a49c"
+  const dim = "#6e6e6e"
+  const gold = "#e1c15a"
+  const hexR = Math.min(w, h) * 0.28
+  g.clearRect(0, 0, w, h)
+  // Sunset beams
+  const origin = { x: cx, y: cy - hexR * 0.08 }
+  for (let i = 0; i < 11; i++) {
+    const t = i / 10
+    const ang = -Math.PI * 0.95 + Math.PI * 0.9 * t
+    const inner = hexR * 0.32
+    const outer = hexR * (1.38 + 0.32 * Math.sin(t * Math.PI))
+    g.strokeStyle = i % 2 === 0 ? gold : "#8a5040"
+    g.globalAlpha = 0.9
+    g.lineWidth = i % 2 === 0 ? 1.6 : 1.1
+    g.beginPath()
+    g.moveTo(origin.x + Math.cos(ang) * inner, origin.y + Math.sin(ang) * inner)
+    g.lineTo(origin.x + Math.cos(ang) * outer, origin.y + Math.sin(ang) * outer)
+    g.stroke()
+  }
+  g.globalAlpha = 1
+  // Hex ring
+  const hex = (r: number, a: number) => {
+    g.beginPath()
+    for (let i = 0; i < 6; i++) {
+      const ang = -Math.PI / 2 + (Math.PI * 2 * i) / 6
+      const x = cx + Math.cos(ang) * r
+      const y = cy + Math.sin(ang) * r
+      if (i === 0) g.moveTo(x, y)
+      else g.lineTo(x, y)
+    }
+    g.closePath()
+    g.strokeStyle = ink
+    g.globalAlpha = a
+    g.lineWidth = a > 0.9 ? 2 : 1
+    g.stroke()
+    g.globalAlpha = 1
+  }
+  hex(hexR, 1)
+  hex(hexR * 0.92, 0.45)
+  // Globe
+  const gr = hexR * 0.48
+  g.strokeStyle = ink
+  g.lineWidth = 1.4
+  g.beginPath()
+  g.arc(cx, cy, gr, 0, Math.PI * 2)
+  g.stroke()
+  for (const k of [-2, -1, 0, 1, 2]) {
+    const y = cy + k * gr * 0.32
+    const half = Math.sqrt(Math.max(0, gr * gr - (y - cy) * (y - cy)))
+    if (half < 2) continue
+    g.strokeStyle = k === 0 ? ink : dim
+    g.lineWidth = k === 0 ? 1.3 : 1
+    g.beginPath()
+    g.moveTo(cx - half, y)
+    g.lineTo(cx + half, y)
+    g.stroke()
+  }
+  for (const k of [-2, -1, 0, 1, 2]) {
+    const rx = gr * Math.cos(k * 0.38)
+    if (rx < 1) continue
+    g.strokeStyle = k === 0 ? ink : dim
+    g.lineWidth = k === 0 ? 1.4 : 1
+    g.beginPath()
+    g.ellipse(cx, cy, Math.abs(rx), gr, 0, -Math.PI / 2, Math.PI / 2)
+    g.stroke()
+    g.globalAlpha = 0.35
+    g.beginPath()
+    g.ellipse(cx, cy, Math.abs(rx), gr, 0, Math.PI / 2, (Math.PI * 3) / 2)
+    g.stroke()
+    g.globalAlpha = 1
+  }
+  // Twelve eyes
+  const orbit = hexR * 1.42
+  for (let i = 0; i < 12; i++) {
+    const ang = -Math.PI / 2 + (Math.PI * 2 * i) / 12
+    const px = cx + Math.cos(ang) * orbit
+    const py = cy + Math.sin(ang) * orbit
+    const eye = hexR * 0.16
+    const hw = eye * 1.05
+    const hh = eye * 0.55
+    g.strokeStyle = ink
+    g.lineWidth = 1.2
+    g.beginPath()
+    for (let j = 0; j <= 12; j++) {
+      const t = j / 12
+      const x = px + (-hw + 2 * hw * t)
+      const y = py - hh * Math.sin(t * Math.PI)
+      if (j === 0) g.moveTo(x, y)
+      else g.lineTo(x, y)
+    }
+    for (let j = 0; j <= 12; j++) {
+      const t = j / 12
+      const x = px + (hw - 2 * hw * t)
+      const y = py + hh * Math.sin(t * Math.PI)
+      g.lineTo(x, y)
+    }
+    g.closePath()
+    g.stroke()
+    const iris = eye * 0.28
+    g.strokeStyle = dim
+    g.beginPath()
+    g.arc(px, py, iris, 0, Math.PI * 2)
+    g.stroke()
+    g.fillStyle = ink
+    g.beginPath()
+    g.arc(px, py, iris * 0.42, 0, Math.PI * 2)
+    g.fill()
+  }
+}
+
+function enterBoard() {
+  if (splashEl.classList.contains("hidden")) return
+  unlockAudio()
+  splashEl.classList.add("hidden")
+  deckEl.classList.remove("hidden")
+}
+
+paintCrest()
+document.querySelector("#enter-board")!.addEventListener("click", enterBoard)
+
 const groups: [string, CardDef["kind"]][] = [
-  ["SOLDIERS", "unit"],
+  ["ANDROIDS", "unit"],
   ["VEHICLES", "vehicle"],
   ["GEAR", "gear"],
 ]
@@ -616,7 +747,16 @@ muteBtn.addEventListener("click", () => {
   if (!audioPrefs().mute) thuds([{ tint: "dust" }])
 })
 paintAudio()
-addEventListener("pointerdown", () => unlockAudio())
+function primeAudio() {
+  unlockAudio()
+}
+addEventListener("pointerdown", primeAudio, { passive: true })
+addEventListener("touchstart", primeAudio, { passive: true })
+addEventListener("keydown", primeAudio)
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") unlockAudio()
+})
+addEventListener("pageshow", () => unlockAudio())
 
 groupBtn.addEventListener("pointerdown", (e) => {
   e.preventDefault()
@@ -686,6 +826,11 @@ function arm(n: number) {
 }
 
 addEventListener("keydown", (e) => {
+  if (!splashEl.classList.contains("hidden") && (e.key === "Enter" || e.key === " ")) {
+    e.preventDefault()
+    enterBoard()
+    return
+  }
   const slot = slotIndex(e)
   if (slot !== null && world?.phase === "run" && !world.paused) {
     e.preventDefault()

@@ -2,6 +2,12 @@
 
 Newest first. Older → `docs/changelog-archive.md`.
 
+- **2026-11-14 Design:** deck/research unit group reads ANDROIDS (was SOLDIERS). `src/main.ts`
+- **2026-11-14 Design:** splash lore opens on muscovy’s ruins before the Ulus annihilation line. `index.html`
+- **2026-11-14 Feat:** HEXAGON / SSO BBS splash before the deck — Ulus lore, crest, and field tips (stand still to set). `index.html` `src/main.ts`
+- **2026-11-14 Fix:** a squad KIA no longer recenters the living file — ring slots keep holes, and the stick/hull stays the center so combat contact holds. `src/sim/world.ts`
+- **2026-10-26 Fix:** mobile thuds/pops — unlock Web Audio only on gesture (silent prime + webkit), never from the frame loop. `src/view/audio.ts` `src/main.ts`
+- **2026-10-25 Fix:** a second deck primary rides the next airdrop instead of replacing the Lead's gun; primary+secondary both fit. `src/sim/world.ts`
 - **2026-10-25 Fix:** RECOVERED free copies are spent when the card is deployed, not kept after a wipe. `src/meta/profile.ts` `src/main.ts`
 - **2026-10-25 Fix:** deck guns and optics outfit the Lead at step-off even when a hull is also queued; touch HUD keeps the roster. `src/sim/world.ts` `index.html`
 - **2026-10-25 Fix:** extract unlocks only the craft haul as RECOVERED; finds merely seen or left behind stay research-gated. `src/meta/profile.ts`
@@ -33,9 +39,3 @@ Newest first. Older → `docs/changelog-archive.md`.
 - **2026-10-25 Fix:** travel intent UI — steel EXIT chevrons (numbered), gold LZ pad, clearer hold plates/banner. `src/view/draw.ts` `src/sim/world.ts`
 - **2026-10-25 Fix:** muzzle flashes draw after grade at CSS scale (longer, brighter) so they read on the field. `src/view/draw.ts` `src/content/muzzle.ts`
 - **2026-10-25 Fix:** path and opposite LZ marks sit farther from field center (radius 72). `src/sim/world.ts`
-- **2026-10-25 Feat:** per-weapon muzzle flashes at the gun tip (shape marks rifle/SMG/shotgun/sniper/rail/MG/lob; blades and bows silent). `src/content/muzzle.ts` `src/sim/world.ts` `src/view/draw.ts`
-- **2026-10-25 Fix:** WORLD start node reads LZ (not HOME); map mark is LZ. `src/main.ts`
-- **2026-10-25 Feat:** WORLD is a pointy-top hex disk radius 7 (169 cells) with painted ground cell art; paths follow hex bearings. `src/meta/worldmap.ts` `src/view/sprites.ts` `src/main.ts`
-- **2026-10-25 Feat:** main menu WORLD tab reads the campaign field graph; start LZ marked with gold ring. `index.html` `src/main.ts`
-- **2026-10-25 Feat:** campaign field graph with multi-path travel, residue eco (feral/rust/bio/oxide/scar), and light loot/sleeper cache; deck airdrops stay run-scoped. `src/meta/worldmap.ts` `src/meta/profile.ts` `src/sim/world.ts` `src/view/draw.ts`
-- **2026-10-25 Fix:** remove hover/billow/trail soft chains that drew detached tips beside NPC stamps; clamp remaining soft draw to 6px of body. `src/view/anim.ts` `src/view/draw.ts`
