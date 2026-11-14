@@ -2,6 +2,7 @@
 
 Newest first. Older → `docs/changelog-archive.md`.
 
+- **2026-11-14 Fix:** PerfectDOS VGA cannot draw `·` `—` `×` `−`, so they rendered as a broken glyph; UI copy is ASCII (`/`, `--`, `x`). `index.html` `src/main.ts` `src/sim/world.ts` `src/content/catalog.ts`
 - **2026-11-14 Design:** deck/research unit group reads ANDROIDS (was SOLDIERS). `src/main.ts`
 - **2026-11-14 Design:** splash lore opens on muscovy’s ruins before the Ulus annihilation line. `index.html`
 - **2026-11-14 Feat:** HEXAGON / SSO BBS splash before the deck — Ulus lore, crest, and field tips (stand still to set). `index.html` `src/main.ts`
@@ -36,6 +37,3 @@ Newest first. Older → `docs/changelog-archive.md`.
 - **2026-10-25 Fix:** exits open one by one (24s stagger after the first at t≥72s), not all at once. `src/sim/world.ts`
 - **2026-10-25 Fix:** rim intent pins (exits, LZ, stash, drops) fan apart so markers stay visible together. `src/view/draw.ts`
 - **2026-10-25 Fix:** exits mark later (t≥72s, after LZ); LZ draws above exits and keeps a larger gold rim pin. `src/sim/world.ts` `src/view/draw.ts`
-- **2026-10-25 Fix:** travel intent UI — steel EXIT chevrons (numbered), gold LZ pad, clearer hold plates/banner. `src/view/draw.ts` `src/sim/world.ts`
-- **2026-10-25 Fix:** muzzle flashes draw after grade at CSS scale (longer, brighter) so they read on the field. `src/view/draw.ts` `src/content/muzzle.ts`
-- **2026-10-25 Fix:** path and opposite LZ marks sit farther from field center (radius 72). `src/sim/world.ts`

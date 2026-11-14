@@ -1621,7 +1621,7 @@ function dress(w: World, b: Body, kit: KitItem[]): KitItem[] {
       if (!first) first = item.id
     } else left.push(item)
   }
-  if (n) toast(w, n === 1 ? `${card(first).name} fitted` : `Kit ×${n}`, "gear")
+  if (n) toast(w, n === 1 ? `${card(first).name} fitted` : `Kit x${n}`, "gear")
   return left
 }
 
@@ -1775,7 +1775,7 @@ export function offerHero(w: World): Hero | null {
   const hero = rollHero(w.rng, taken)
   w.heroes[hero.id] = hero
   placeDrop(w, hero.id, w.stashX + 1.6, w.stashY)
-  const tag = hero.tag ? ` · ${hero.tag}` : ""
+  const tag = hero.tag ? ` / ${hero.tag}` : ""
   toast(w, `${hero.name}${tag} spotted`, "unit")
   return hero
 }
@@ -3880,7 +3880,7 @@ function labels(w: World) {
   else if (w.flareOn) w.banner = inLz ? `CRAFT ${Math.max(0, Math.ceil(craftWait(w) - w.flareHold))}s` : "HOLD THE LZ"
   else if (inPath) w.banner = `HOLD EXIT ${Math.max(0, Math.ceil(PATH_HOLD - pathHold))}s`
   else if (w.lzOn && inLz) w.banner = `ARM FLARE ${Math.max(0, Math.ceil(FLARE_ARM - w.flareArm))}s`
-  else if (w.lzOn && w.pathOn) w.banner = "HOLD LZ · OR EXIT"
+  else if (w.lzOn && w.pathOn) w.banner = "HOLD LZ / OR EXIT"
   else if (w.pathOn)
     w.banner = w.paths.filter((p) => p.open).length > 1 ? "REACH AN EXIT" : "REACH EXIT"
   else if (w.lzOn) w.banner = "REACH LZ"

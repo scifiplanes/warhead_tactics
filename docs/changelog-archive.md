@@ -2,6 +2,9 @@
 
 Moved from `docs/changelog.md` when that file outgrows its cap.
 
+- **2026-10-25 Fix:** travel intent UI — steel EXIT chevrons (numbered), gold LZ pad, clearer hold plates/banner. `src/view/draw.ts` `src/sim/world.ts`
+- **2026-10-25 Fix:** muzzle flashes draw after grade at CSS scale (longer, brighter) so they read on the field. `src/view/draw.ts` `src/content/muzzle.ts`
+- **2026-10-25 Fix:** path and opposite LZ marks sit farther from field center (radius 72). `src/sim/world.ts`
 - **2026-10-25 Feat:** per-weapon muzzle flashes at the gun tip (shape marks rifle/SMG/shotgun/sniper/rail/MG/lob; blades and bows silent). `src/content/muzzle.ts` `src/sim/world.ts` `src/view/draw.ts`
 - **2026-10-25 Fix:** WORLD start node reads LZ (not HOME); map mark is LZ. `src/main.ts`
 - **2026-10-25 Feat:** WORLD is a pointy-top hex disk radius 7 (169 cells) with painted ground cell art; paths follow hex bearings. `src/meta/worldmap.ts` `src/view/sprites.ts` `src/main.ts`

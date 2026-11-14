@@ -42,3 +42,4 @@ Checks: `npm test`. Ledger: `GATES.md`.
 - Campaign map scars and residue persist across runs; restart rolls a new graph. The WORLD menu tab is read-only; travel stays path/LZ
 - The stick (or the hull the Lead boards) is the file center. Ring slots are stable: a KIA leaves a hole and does not reshuffle the living; closing to tight reforms the file
 - A new body is a catalog row plus a test
+- UI copy stays ASCII for PerfectDOS VGA (`/`, `--`, `x`) — no `·` `—` `×` `−`

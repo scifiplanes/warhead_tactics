@@ -239,7 +239,7 @@ function paintResearch() {
       const open = document.createElement("button")
       open.type = "button"
       open.className = "ghost"
-      open.textContent = `RESEARCH · ${pending.length}`
+      open.textContent = `RESEARCH / ${pending.length}`
       open.addEventListener("click", () => {
         researchEl.classList.remove("hidden")
         paintResearch()
@@ -285,7 +285,7 @@ function paintResearch() {
       const depth = profile.depth[row.id] ?? 0
       const costR = researchCost(row.id, depth)
       const small = document.createElement("small")
-      small.textContent = depth ? `MORE · ${costR} CR` : `${costR} CR`
+      small.textContent = depth ? `MORE / ${costR} CR` : `${costR} CR`
       btn.append(b, small)
       btn.disabled = profile.credits < costR
       btn.addEventListener("click", () => {
@@ -359,7 +359,7 @@ function paintDeck() {
       const b = document.createElement("b")
       b.textContent = hero.name
       const small = document.createElement("small")
-      small.textContent = `${card(hero.chassis).name} · ${hero.gift.toUpperCase()}  ${cardCost(hero.id)} CR`
+      small.textContent = `${card(hero.chassis).name} / ${hero.gift.toUpperCase()}  ${cardCost(hero.id)} CR`
       const n = document.createElement("span")
       n.className = "n"
       n.textContent = count(hero.id) ? "1/1" : ""
@@ -432,7 +432,7 @@ function paintWorldDetail(node: FieldNode | null, startId: number) {
   const home = node.id === startId
   worldTitle.textContent = node.visited ? `FIELD ${node.id}` : home ? "LZ" : "UNKNOWN"
   worldSub.textContent = node.visited
-    ? `${GROUND_LABEL[node.ground] ?? node.ground}${home ? " · LZ" : ""}`
+    ? `${GROUND_LABEL[node.ground] ?? node.ground}${home ? " / LZ" : ""}`
     : home
       ? "Step-off LZ. Walk paths on the field to open neighbors."
       : "Unvisited. Residue is fog of war until the section walks it."
@@ -984,7 +984,7 @@ function kitIds(gears: string[]) {
 }
 
 function paintHud(w: World) {
-  document.querySelector("#timer")!.textContent = `${clock(w.t)}${speed > 1 ? "  2×" : ""}`
+  document.querySelector("#timer")!.textContent = `${clock(w.t)}${speed > 1 ? "  2x" : ""}`
   document.querySelector("#kills")!.textContent = `KILLS ${w.kills}`
   const cr = document.querySelector("#credits")
   if (cr) cr.textContent = `CR ${w.credits}`
@@ -1159,7 +1159,7 @@ function finish() {
           return id
         }
       })
-      rows.push(["LOADOUT", names.join(" · ")])
+      rows.push(["LOADOUT", names.join(" / ")])
     }
   } else {
     const freshFinds = bankFinds(profile, world.found)
@@ -1171,7 +1171,7 @@ function finish() {
           return id
         }
       })
-      rows.push(["RESEARCH", names.join(" · ")])
+      rows.push(["RESEARCH", names.join(" / ")])
     }
   }
   save(profile)
