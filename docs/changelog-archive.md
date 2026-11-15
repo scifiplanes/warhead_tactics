@@ -2,6 +2,7 @@
 
 Moved from `docs/changelog.md` when that file outgrows its cap.
 
+- **2026-10-25 Fix:** exits mark later (t≥72s, after LZ); LZ draws above exits and keeps a larger gold rim pin. `src/sim/world.ts` `src/view/draw.ts`
 - **2026-10-25 Fix:** travel intent UI — steel EXIT chevrons (numbered), gold LZ pad, clearer hold plates/banner. `src/view/draw.ts` `src/sim/world.ts`
 - **2026-10-25 Fix:** muzzle flashes draw after grade at CSS scale (longer, brighter) so they read on the field. `src/view/draw.ts` `src/content/muzzle.ts`
 - **2026-10-25 Fix:** path and opposite LZ marks sit farther from field center (radius 72). `src/sim/world.ts`

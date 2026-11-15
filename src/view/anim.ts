@@ -169,6 +169,7 @@ type BodyIn = {
   stun: number
   parts: Part[]
   side: string
+  gears?: string[]
 }
 
 export function footAnim(
@@ -246,8 +247,9 @@ export function footAnim(
   const hasLegPart = b.parts.some((p) => p.id === "leg")
   const legCount = hasLegPart ? legsOn : 2
   const armsOn = b.parts.some((p) => p.id === "arm" && p.on) || !b.parts.some((p) => p.id === "arm")
-  const crawl = hasLegPart && legCount === 0
-  const limp = hasLegPart && legCount === 1
+  const pack = !!b.gears?.includes("jetpack")
+  const crawl = !pack && hasLegPart && legCount === 0
+  const limp = !pack && hasLegPart && legCount === 1
   const liveLeg = limp ? (b.parts.findIndex((p) => p.id === "leg" && p.on) === 0 ? 0 : 1) : -1
 
   const deploying = !b.mobileFire && b.deployNeed > 0 && b.deploy > 0.05 && !b.moved

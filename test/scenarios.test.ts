@@ -39,6 +39,7 @@ import {
   LOAD_STEP,
   PATH_HOLD,
   IDLE,
+  aloft,
   balanceLine,
   beams,
   commitMap,
@@ -1059,14 +1060,14 @@ test("gun attachments shed onto the mud as items when the gun is replaced", () =
   expect(lead.gears).toContain("plate")
   expect(lead.gears).toContain("scope")
   expect(lead.gears).toContain("grip")
-  expect(lead.range).toBeCloseTo(9 * 1.3, 5)
+  expect(lead.range).toBeCloseTo(15 * 1.3, 5)
   placeDrop(w, "sniper", 0.2, 0)
   go(w, IDLE, 0.3)
   expect(lead.gears).toContain("sniper")
   expect(lead.gears).toContain("plate")
   expect(lead.gears.includes("scope")).toBe(false)
   expect(lead.gears.includes("grip")).toBe(false)
-  expect(lead.range).toBe(18)
+  expect(lead.range).toBe(28)
   const shed = w.drops.filter((d) => !d.taken && d.skin === "item")
   expect(shed.map((d) => d.cardId).sort()).toEqual(["grip", "scope"])
   const scopeDrop = shed.find((d) => d.cardId === "scope")!
@@ -1076,7 +1077,7 @@ test("gun attachments shed onto the mud as items when the gun is replaced", () =
   w.ay = lead.y
   go(w, IDLE, 0.3)
   expect(lead.gears).toContain("scope")
-  expect(lead.range).toBeCloseTo(18 * 1.3, 5)
+  expect(lead.range).toBeCloseTo(28 * 1.3, 5)
 })
 
 test("a second optic replaces the first and sheds it as an item", () => {
@@ -1085,12 +1086,12 @@ test("a second optic replaces the first and sheds it as an item", () => {
   placeDrop(w, "scope", 0.2, 0)
   go(w, IDLE, 0.3)
   expect(lead.gears).toContain("scope")
-  expect(lead.range).toBeCloseTo(11.7, 5)
+  expect(lead.range).toBeCloseTo(15 * 1.3, 5)
   placeDrop(w, "dot", 0.2, 0)
   go(w, IDLE, 0.3)
   expect(lead.gears).toContain("dot")
   expect(lead.gears.includes("scope")).toBe(false)
-  expect(lead.range).toBe(9)
+  expect(lead.range).toBe(15)
   expect(lead.cooldown).toBeCloseTo(0.45 * 0.88, 5)
   expect(w.drops.some((d) => !d.taken && d.cardId === "scope" && d.skin === "item")).toBe(true)
 })
@@ -1216,7 +1217,7 @@ test("the lead deploys wearing deck gear", () => {
   expect(lead.gears).toContain("rifle")
   expect(lead.gears).toContain("plate")
   expect(lead.gears).toContain("lsight")
-  expect(lead.range).toBeCloseTo(9 * 1.08, 5)
+  expect(lead.range).toBeCloseTo(15 * 1.08, 5)
   expect(lead.cooldown).toBeCloseTo(0.45 * 0.9, 5)
   expect(w.deckQueue).toEqual([])
   expect(card("lsight").slot).toBe("optic")
@@ -1271,7 +1272,7 @@ test("a unit airdrops wearing deck gear", () => {
   expect(medic.gears).toContain("rifle")
   expect(medic.gears).toContain("plate")
   expect(medic.gears).toContain("lsight")
-  expect(medic.range).toBeCloseTo(9 * 1.08, 5)
+  expect(medic.range).toBeCloseTo(15 * 1.08, 5)
   expect(medic.cooldown).toBeCloseTo(0.45 * 0.9, 5)
   expect(w.drops.some((d) => d.cardId === "plate" || d.cardId === "lsight")).toBe(false)
 })
@@ -1610,7 +1611,7 @@ test("weather slows the file, cuts sight, and weakens fire", () => {
   fog.weather = "fog"
   const cell = fog.bodies.find((b) => b.kind === "cell_rifle")!
   cell.deploy = cell.deployNeed
-  spawnBody(fog, { kind: "shambler", x: 8, y: 0, hp: 80, damage: 0, speed: 0 })
+  spawnBody(fog, { kind: "shambler", x: 12, y: 0, hp: 80, damage: 0, speed: 0 })
   step(fog, IDLE, 1 / 30)
   expect(cell.fired).toBe(0)
 
@@ -1626,7 +1627,7 @@ test("night cuts sight until NVG or thermal, and daylight shuts both", () => {
   dark.t = 90
   const cell = dark.bodies.find((b) => b.kind === "cell_rifle")!
   cell.deploy = cell.deployNeed
-  spawnBody(dark, { kind: "shambler", x: 0, y: 6, hp: 80, damage: 0, speed: 0 })
+  spawnBody(dark, { kind: "shambler", x: 0, y: 9, hp: 80, damage: 0, speed: 0 })
   step(dark, IDLE, 1 / 30)
   expect(cell.fired).toBe(0)
   dark.toolbar.push({ id: "nvg", charges: 0, cd: 0, cdMax: 0 })
@@ -1690,14 +1691,14 @@ test("a flesh soldier lights a beam at night", () => {
   const cell2 = off.bodies.find((b) => b.kind === "cell_rifle")!
   cell2.deploy = cell2.deployNeed
   cell2.hdg = 0
-  spawnBody(off, { kind: "shambler", x: 0, y: 6, hp: 80, damage: 0, speed: 0 })
+  spawnBody(off, { kind: "shambler", x: 0, y: 9, hp: 80, damage: 0, speed: 0 })
   step(off, IDLE, 1 / 30)
   expect(cell2.fired).toBe(0)
 
   const machine = quiet()
   machine.t = 90
   const lead = machine.bodies.find((b) => b.kind === "cell_rifle")!
-  lead.x = -20
+  lead.x = -40
   lead.hdg = Math.PI
   const aeg = spawnBody(machine, { kind: "aegis", x: 0, y: 0, inSection: true })
   aeg.hdg = 0
@@ -1944,7 +1945,7 @@ test("androids, a digger, a wisp, and a relay", () => {
   fog.weather = "fog"
   const rifle = fog.bodies.find((b) => b.kind === "cell_rifle")!
   rifle.deploy = rifle.deployNeed
-  spawnBody(fog, { kind: "shambler", x: 8, y: 0, hp: 80, damage: 0, speed: 0 })
+  spawnBody(fog, { kind: "shambler", x: 12, y: 0, hp: 80, damage: 0, speed: 0 })
   step(fog, IDLE, 1 / 30)
   expect(rifle.fired).toBe(0)
   spawnBody(fog, { kind: "wisp", x: 0, y: 0, inSection: true })
@@ -2217,11 +2218,17 @@ test("the rest of the roster is gear, hulls, and rust", () => {
   pack.drops.push({ id: 82, cardId: "jetpack", x: 0.2, y: 0, bodyId: 0, kind: "gear", taken: false, cost: 0 })
   go(pack, IDLE, 0.3)
   expect(cell.speed).toBeGreaterThan(pace)
+  expect(aloft(cell)).toBe(true)
   pack.weather = "snow"
   pack.marshes = [{ x: 0, y: 0, r: 20 }]
   const x0 = pack.ax
   go(pack, { ...IDLE, moveX: 1 }, 1)
   expect(pack.ax - x0).toBeGreaterThan(4.6)
+  for (const p of cell.parts) if (p.id === "leg") p.on = false
+  const x1 = pack.ax
+  go(pack, { ...IDLE, moveX: 1 }, 1)
+  expect(pack.ax - x1).toBeGreaterThan(4.6)
+  console.log("GATE jetpack-lift ok")
 
   const veil = quiet()
   veil.props = []
@@ -2502,7 +2509,7 @@ test("starting cell armed", () => {
   const lead = w.bodies.find((b) => b.kind === "cell_rifle")!
   expect(lead.gears).toContain("rifle")
   expect(lead.damage).toBe(7)
-  expect(lead.range).toBe(9)
+  expect(lead.range).toBe(15)
   expect(lead.mobileFire).toBe(false)
 })
 
@@ -2514,7 +2521,7 @@ test("a knife fits beside the rifle and cuts close while the rifle holds the ran
   expect(lead.gears).toContain("knife")
   expect(lead.gears).toContain("rifle")
   expect(card("knife").hand).toBe("secondary")
-  expect(lead.range).toBe(9)
+  expect(lead.range).toBe(15)
   expect(lead.mobileFire).toBe(false)
   const near = spawnBody(w, {
     kind: "shambler",

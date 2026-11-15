@@ -2,6 +2,9 @@
 
 Newest first. Older → `docs/changelog-archive.md`.
 
+- **2026-11-15 Fix:** reformFile passes the commander into commandHull again so the production build typechecks and deploy ships. `src/sim/world.ts`
+- **2026-11-14 Fix:** section guns and hull mounts reach ~1.6x farther (rifle 15, sniper 28); night beam matches. Hostiles and blades stay put. `src/content/catalog.ts` `src/sim/world.ts`
+- **2026-11-14 Feat:** jetpack lifts the wearer (hover + shadow, mud clear, legs optional) instead of only a speed buff. `src/sim/world.ts` `src/view/draw.ts` `src/view/anim.ts` `src/content/catalog.ts`
 - **2026-11-14 Fix:** PerfectDOS VGA cannot draw `·` `—` `×` `−`, so they rendered as a broken glyph; UI copy is ASCII (`/`, `--`, `x`). `index.html` `src/main.ts` `src/sim/world.ts` `src/content/catalog.ts`
 - **2026-11-14 Design:** deck/research unit group reads ANDROIDS (was SOLDIERS). `src/main.ts`
 - **2026-11-14 Design:** splash lore opens on muscovy’s ruins before the Ulus annihilation line. `index.html`
@@ -36,4 +39,3 @@ Newest first. Older → `docs/changelog-archive.md`.
 - **2026-10-25 Fix:** deck difficulty row reads AUTOLOAD (was LOAD); AUTOPLAY stays the bot deploy. `index.html`
 - **2026-10-25 Fix:** exits open one by one (24s stagger after the first at t≥72s), not all at once. `src/sim/world.ts`
 - **2026-10-25 Fix:** rim intent pins (exits, LZ, stash, drops) fan apart so markers stay visible together. `src/view/draw.ts`
-- **2026-10-25 Fix:** exits mark later (t≥72s, after LZ); LZ draws above exits and keeps a larger gold rim pin. `src/sim/world.ts` `src/view/draw.ts`

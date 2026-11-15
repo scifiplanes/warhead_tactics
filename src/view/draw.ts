@@ -1,5 +1,5 @@
 import { card } from "../content/catalog"
-import { BEAM_ARC, BEAM_R, CRAFT_WAIT, FLARE_ARM, FLARE_R, GAP_MAX, PATH_HOLD, beams, daylight, trackerTargets, type Body, type Burst, type Flash, type Inbound, type World } from "../sim/world"
+import { BEAM_ARC, BEAM_R, CRAFT_WAIT, FLARE_ARM, FLARE_R, GAP_MAX, PATH_HOLD, aloft, beams, daylight, trackerTargets, type Body, type Burst, type Flash, type Inbound, type World } from "../sim/world"
 import {
   footAnim,
   hullMotion,
@@ -587,7 +587,8 @@ function paintDrones(g: CanvasRenderingContext2D, w: World, X: (x: number) => nu
   pruneCables(live)
 }
 
-function airLift(b: { air: boolean; kind: string; vehicle: boolean }) {
+function airLift(b: Body) {
+  if (aloft(b)) return 10
   if (!b.air) return 0
   if (b.kind === "bomber") return 20
   if (b.kind === "rocket" || b.kind === "gunship") return 18

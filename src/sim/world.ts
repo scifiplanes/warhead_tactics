@@ -383,7 +383,7 @@ export function daylight(t: number) {
 }
 
 const NIGHT = 0.45
-export const BEAM_R = 14
+export const BEAM_R = 22
 export const BEAM_ARC = 0.55
 const WEATHER: Record<Weather, { conceal: number; move: number; bog: number; fire: number }> = {
   clear: { conceal: 0, move: 1, bog: 1, fire: 1 },
@@ -989,7 +989,7 @@ function claimForm(w: World, u: Body) {
 /** Pack living ring slots only when the file closes tight — never on KIA. */
 function reformFile(w: World) {
   const boss = commandUnit(w)
-  const hull = commandHull(w)
+  const hull = commandHull(w, boss)
   const bossOnFoot = boss && !hull ? boss.id : -1
   if (boss) boss.formSlot = -1
   const ring = feet(w).filter((u) => u.boardVeh === null && u.id !== bossOnFoot)
@@ -1805,7 +1805,7 @@ const SLEEPER_HULLS: [string, string][] = [
 function arm(w: World, b: Body) {
   if (b.damage > 0 && b.range > 0) return
   if (b.vehicle || b.follow || b.air) {
-    b.range = 8
+    b.range = 13
     b.damage = 3
     b.cooldown = 0.7
     b.mobileFire = true
@@ -3234,8 +3234,13 @@ function mines(w: World, dt: number) {
   w.mines = live
 }
 
+/** Jetpack wearer is aloft — clear of mud and leg gait. */
+export function aloft(b: Body) {
+  return !b.vehicle && b.boarded === null && b.gears.includes("jetpack")
+}
+
 function bog(w: World, vehicle: boolean, kind = "", x = 0, y = 0, who?: Body) {
-  if (kind === "hover" || who?.air || who?.gears.includes("jetpack")) return 1
+  if (kind === "hover" || who?.air || (who && aloft(who))) return 1
   const row = WEATHER[w.weather]
   let s = who?.gears.includes("filter") ? 1 : 1 / (vehicle ? row.bog : row.move)
   for (const m of w.marshes) {
@@ -3731,6 +3736,7 @@ function limbs(vehicle: boolean, air = false): Limb[] {
 }
 
 function limbSpeed(b: Body) {
+  if (aloft(b)) return b.speed
   const legs = b.parts.filter((p) => p.id === "leg")
   if (!legs.length) return b.speed
   const on = legs.filter((p) => p.on).length
