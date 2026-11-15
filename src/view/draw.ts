@@ -91,7 +91,7 @@ export type Dither = {
 }
 const ditherSet: Dither = {
   on: true,
-  alpha: 0.31,
+  alpha: 0.12,
   cut: 4,
   scale: 8,
   size: 1,
@@ -102,7 +102,7 @@ const ditherSet: Dither = {
   blend: "over",
   layer: "top",
 }
-const INK: Record<Ink, string> = { black: "#0c0b09", white: "#a8a49c", mud: "#2e2a24", oxide: "#8a5040" }
+const INK: Record<Ink, string> = { black: "#0c0b09", white: "#a8a49c", mud: "#3a3630", oxide: "#8a5040" }
 const COMP: Record<Blend, GlobalCompositeOperation> = { over: "source-over", mul: "multiply", add: "lighter" }
 
 export function ditherPrefs(): Dither {
@@ -178,7 +178,7 @@ function paintGround(g: CanvasRenderingContext2D, bw: number, bh: number, cx: nu
   const n = tile.width
   g.setTransform(1, 0, 0, 1, 0, 0)
   g.imageSmoothingEnabled = false
-  g.fillStyle = "#221e1a"
+  g.fillStyle = "#322c28"
   g.fillRect(0, 0, bw, bh)
   const span = 16
   const originX = Math.round(bw / 2 - cx * zoom)
@@ -470,9 +470,9 @@ export function draw(
   }
 
   if (!vignette || vigW !== bw || vigH !== bh) {
-    vignette = g.createRadialGradient(bw / 2, bh / 2, Math.min(bw, bh) * 0.35, bw / 2, bh / 2, Math.max(bw, bh) * 0.75)
+    vignette = g.createRadialGradient(bw / 2, bh / 2, Math.min(bw, bh) * 0.48, bw / 2, bh / 2, Math.max(bw, bh) * 0.82)
     vignette.addColorStop(0, "rgba(0,0,0,0)")
-    vignette.addColorStop(1, "rgba(0,0,0,.62)")
+    vignette.addColorStop(1, "rgba(12,11,9,.16)")
     vigW = bw
     vigH = bh
   }
@@ -680,7 +680,7 @@ function paintNight(
 ) {
   if (w.vision !== "off") return
   const day = daylight(w.t + w.dayOff)
-  const dusk = Math.max(0, Math.min(1, (0.72 - day) / 0.55))
+  const dusk = Math.max(0, Math.min(1, (0.55 - day) / 0.5))
   if (dusk <= 0) return
   if (!shade || shade.width !== bw || shade.height !== bh) {
     shade = document.createElement("canvas")
@@ -691,7 +691,8 @@ function paintNight(
   if (!s) return
   s.setTransform(1, 0, 0, 1, 0, 0)
   s.clearRect(0, 0, bw, bh)
-  s.fillStyle = `rgba(0,0,0,${0.62 * dusk})`
+  // Soft night multiply — keep mud/sprites readable; beams still punch holes.
+  s.fillStyle = `rgba(12,11,9,${0.18 * dusk})`
   s.fillRect(0, 0, bw, bh)
   s.globalCompositeOperation = "destination-out"
   s.fillStyle = "#000"

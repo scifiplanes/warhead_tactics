@@ -2,6 +2,7 @@
 
 Newest first. Older → `docs/changelog-archive.md`.
 
+- **2026-11-15 Fix:** field reads brighter — softer night/vignette, lighter mud, lighter dither ink, dayOff skips midnight. `src/view/draw.ts` `src/view/sprites.ts` `src/sim/world.ts` `docs/design/art.md`
 - **2026-11-15 Fix:** reformFile passes the commander into commandHull again so the production build typechecks and deploy ships. `src/sim/world.ts`
 - **2026-11-14 Fix:** section guns and hull mounts reach ~1.6x farther (rifle 15, sniper 28); night beam matches. Hostiles and blades stay put. `src/content/catalog.ts` `src/sim/world.ts`
 - **2026-11-14 Feat:** jetpack lifts the wearer (hover + shadow, mud clear, legs optional) instead of only a speed buff. `src/sim/world.ts` `src/view/draw.ts` `src/view/anim.ts` `src/content/catalog.ts`
@@ -10,6 +11,7 @@ Newest first. Older → `docs/changelog-archive.md`.
 - **2026-11-14 Design:** splash lore opens on muscovy’s ruins before the Ulus annihilation line. `index.html`
 - **2026-11-14 Feat:** HEXAGON / SSO BBS splash before the deck — Ulus lore, crest, and field tips (stand still to set). `index.html` `src/main.ts`
 - **2026-11-14 Fix:** a squad KIA no longer recenters the living file — ring slots keep holes, and the stick/hull stays the center so combat contact holds. `src/sim/world.ts`
+- **2026-11-15 Fix:** mobile audio — `audioSession` playback (mute-switch), silent media unlock, mid-band thuds/pops phones can actually hear. `src/view/audio.ts`
 - **2026-10-26 Fix:** mobile thuds/pops — unlock Web Audio only on gesture (silent prime + webkit), never from the frame loop. `src/view/audio.ts` `src/main.ts`
 - **2026-10-25 Fix:** a second deck primary rides the next airdrop instead of replacing the Lead's gun; primary+secondary both fit. `src/sim/world.ts`
 - **2026-10-25 Fix:** RECOVERED free copies are spent when the card is deployed, not kept after a wipe. `src/meta/profile.ts` `src/main.ts`
@@ -36,6 +38,3 @@ Newest first. Older → `docs/changelog-archive.md`.
 - **2026-10-25 Design:** HEX scout/line/siege read as bipedal mechs (legs + torso + arm gun), not tracked hulls. `src/view/sprites.ts`
 - **2026-10-25 Fix:** match CR shows run earnings only; LZ extract no longer path-travels (LZ clears exits; hold LZ never travels). `src/main.ts` `src/sim/world.ts`
 - **2026-10-25 Feat:** muzzle flashes are night light sources — punch the veil, warm bloom, and briefly light combat sight. `src/content/muzzle.ts` `src/sim/world.ts` `src/view/draw.ts`
-- **2026-10-25 Fix:** deck difficulty row reads AUTOLOAD (was LOAD); AUTOPLAY stays the bot deploy. `index.html`
-- **2026-10-25 Fix:** exits open one by one (24s stagger after the first at t≥72s), not all at once. `src/sim/world.ts`
-- **2026-10-25 Fix:** rim intent pins (exits, LZ, stash, drops) fan apart so markers stay visible together. `src/view/draw.ts`

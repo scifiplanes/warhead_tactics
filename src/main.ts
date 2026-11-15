@@ -205,7 +205,7 @@ function paintCrest() {
 
 function enterBoard() {
   if (splashEl.classList.contains("hidden")) return
-  unlockAudio()
+  void unlockAudio()
   splashEl.classList.add("hidden")
   deckEl.classList.remove("hidden")
 }
@@ -633,7 +633,7 @@ function paintAudio() {
   muteBtn.textContent = a.mute ? "MUTED" : "MUTE"
 }
 function openSystem() {
-  unlockAudio()
+  void unlockAudio()
   paintAudio()
   systemEl.classList.remove("hidden")
 }
@@ -735,28 +735,34 @@ ditherLevels.addEventListener("input", () => {
   paintDebug()
 })
 volEl.addEventListener("input", () => {
-  unlockAudio()
-  setAudio({ vol: Number(volEl.value) / 100, mute: audioPrefs().mute })
+  void unlockAudio().then(() => {
+    setAudio({ vol: Number(volEl.value) / 100, mute: audioPrefs().mute })
+  })
 })
-volEl.addEventListener("change", () => thuds([{ tint: "dust" }]))
+volEl.addEventListener("change", () => {
+  void unlockAudio().then(() => thuds([{ tint: "dust" }]))
+})
 muteBtn.addEventListener("click", () => {
-  unlockAudio()
-  const a = audioPrefs()
-  setAudio({ vol: a.vol, mute: !a.mute })
-  paintAudio()
-  if (!audioPrefs().mute) thuds([{ tint: "dust" }])
+  void unlockAudio().then(() => {
+    const a = audioPrefs()
+    setAudio({ vol: a.vol, mute: !a.mute })
+    paintAudio()
+    if (!audioPrefs().mute) thuds([{ tint: "dust" }])
+  })
 })
 paintAudio()
 function primeAudio() {
-  unlockAudio()
+  void unlockAudio()
 }
 addEventListener("pointerdown", primeAudio, { passive: true })
 addEventListener("touchstart", primeAudio, { passive: true })
 addEventListener("keydown", primeAudio)
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") unlockAudio()
+  if (document.visibilityState === "visible") void unlockAudio()
 })
-addEventListener("pageshow", () => unlockAudio())
+addEventListener("pageshow", () => {
+  void unlockAudio()
+})
 
 groupBtn.addEventListener("pointerdown", (e) => {
   e.preventDefault()

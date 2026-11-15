@@ -1,9 +1,17 @@
 const KEY = "warhead-tactics-audio"
 
+/** Tiny silent WAV — opens the media channel on older iOS. */
+const SILENCE =
+  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA="
+
 export type AudioPrefs = { vol: number; mute: boolean }
 
 type WebkitWindow = Window & {
   webkitAudioContext?: typeof AudioContext
+}
+
+type AudioSessionNav = Navigator & {
+  audioSession?: { type: string }
 }
 
 export function loadAudio(): AudioPrefs {
@@ -32,7 +40,7 @@ let bus: GainNode | null = null
 let noise: AudioBuffer | null = null
 let last = 0
 let lastPop = 0
-let primed = false
+let media: HTMLAudioElement | null = null
 
 export function audioPrefs() {
   return prefs
@@ -41,12 +49,32 @@ export function audioPrefs() {
 export function setAudio(next: AudioPrefs) {
   prefs = { vol: Math.min(1, Math.max(0, next.vol)), mute: next.mute }
   saveAudio(prefs)
-  if (bus) bus.gain.value = prefs.mute ? 0 : prefs.vol * 0.7
+  if (bus) bus.gain.value = prefs.mute ? 0 : prefs.vol * 0.85
 }
 
 function AudioCtor(): typeof AudioContext | null {
   const w = window as WebkitWindow
   return window.AudioContext || w.webkitAudioContext || null
+}
+
+/** iOS 17+: Web Audio defaults to ambient and dies under the mute switch. */
+function setPlaybackSession() {
+  try {
+    const nav = navigator as AudioSessionNav
+    if (nav.audioSession) nav.audioSession.type = "playback"
+  } catch {
+    /* unsupported */
+  }
+}
+
+/** Older iOS: a media element pull puts Web Audio on the audible channel. */
+function unlockMediaElement() {
+  if (!media) {
+    media = new Audio(SILENCE)
+    media.setAttribute("playsinline", "true")
+    media.volume = 0.01
+  }
+  void media.play().catch(() => {})
 }
 
 /** Build graph only from a user gesture — never from rAF (iOS stays suspended). */
@@ -55,12 +83,13 @@ function ensureGraph(): AudioContext | null {
   const Ctor = AudioCtor()
   if (!Ctor) return null
   ctx = new Ctor()
+  // Muffled, but mid enough for phone speakers (old 220Hz cut killed pops/thuds).
   const low = ctx.createBiquadFilter()
   low.type = "lowpass"
-  low.frequency.value = 220
-  low.Q.value = 0.5
+  low.frequency.value = 1100
+  low.Q.value = 0.6
   bus = ctx.createGain()
-  bus.gain.value = prefs.mute ? 0 : prefs.vol * 0.7
+  bus.gain.value = prefs.mute ? 0 : prefs.vol * 0.85
   bus.connect(low)
   low.connect(ctx.destination)
   noise = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.5), ctx.sampleRate)
@@ -69,38 +98,43 @@ function ensureGraph(): AudioContext | null {
   return ctx
 }
 
-function tickPrime() {
-  if (!ctx || !bus || !noise || primed) return
-  const now = ctx.currentTime
-  const grit = ctx.createBufferSource()
-  const veil = ctx.createGain()
+/** Near-silent buffer started in-gesture so Safari treats the graph as live. */
+function tickPrime(c: AudioContext) {
+  if (!bus || !noise) return
+  const now = c.currentTime
+  const grit = c.createBufferSource()
+  const veil = c.createGain()
   grit.buffer = noise
   veil.gain.value = 0.0001
   grit.connect(veil)
   veil.connect(bus)
   grit.start(now)
-  grit.stop(now + 0.02)
-  primed = true
+  grit.stop(now + 0.03)
 }
 
-function wake(): AudioContext | null {
+/** Call from pointer/touch/click. Awaits resume so a follow-up thud can play. */
+export async function unlockAudio() {
+  setPlaybackSession()
+  unlockMediaElement()
   const c = ensureGraph()
-  if (!c) return null
-  tickPrime()
+  if (!c) return
+  tickPrime(c)
   const state = c.state as string
-  if (state === "suspended" || state === "interrupted") void c.resume()
-  return c
-}
-
-/** Call from pointer/touch/click. Primes iOS with a near-silent buffer in-gesture. */
-export function unlockAudio() {
-  wake()
+  if (state === "suspended" || state === "interrupted") {
+    try {
+      await c.resume()
+    } catch {
+      /* gesture lost */
+    }
+    if (ctx) tickPrime(ctx)
+  }
 }
 
 function live(): AudioContext | null {
   if (!ctx || !bus || !noise) return null
   const state = ctx.state as string
   if (state === "suspended" || state === "interrupted") {
+    setPlaybackSession()
     void ctx.resume()
     return null
   }
@@ -116,27 +150,28 @@ export function thuds(bursts: { tint: string }[]) {
   const now = c.currentTime
   if (now - last < (heavy ? 0.06 : 0.16)) return
   last = now
+  // Fundamentals in the phone-speaker band; grit carries the "distant mud" read.
   const body = c.createOscillator()
   const gain = c.createGain()
   body.type = "sine"
-  body.frequency.setValueAtTime(heavy ? 52 : 74, now)
-  body.frequency.exponentialRampToValueAtTime(28, now + (heavy ? 0.5 : 0.26))
+  body.frequency.setValueAtTime(heavy ? 130 : 190, now)
+  body.frequency.exponentialRampToValueAtTime(heavy ? 55 : 70, now + (heavy ? 0.45 : 0.24))
   gain.gain.setValueAtTime(0.0001, now)
-  gain.gain.exponentialRampToValueAtTime(heavy ? 0.55 : 0.2, now + 0.015)
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + (heavy ? 0.62 : 0.32))
+  gain.gain.exponentialRampToValueAtTime(heavy ? 0.7 : 0.32, now + 0.012)
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + (heavy ? 0.55 : 0.28))
   body.connect(gain)
   gain.connect(bus)
   body.start(now)
-  body.stop(now + 0.7)
+  body.stop(now + 0.6)
   const grit = c.createBufferSource()
   const veil = c.createGain()
   grit.buffer = noise
-  veil.gain.setValueAtTime(heavy ? 0.22 : 0.08, now)
-  veil.gain.exponentialRampToValueAtTime(0.0001, now + (heavy ? 0.4 : 0.18))
+  veil.gain.setValueAtTime(heavy ? 0.28 : 0.12, now)
+  veil.gain.exponentialRampToValueAtTime(0.0001, now + (heavy ? 0.35 : 0.16))
   grit.connect(veil)
   veil.connect(bus)
   grit.start(now)
-  grit.stop(now + 0.45)
+  grit.stop(now + 0.4)
 }
 
 /** Muffled brass crack for section powder (hip and set). Quieter than hit thuds. */
@@ -150,10 +185,10 @@ export function pops(n: number) {
   const body = c.createOscillator()
   const gain = c.createGain()
   body.type = "triangle"
-  body.frequency.setValueAtTime(420, now)
-  body.frequency.exponentialRampToValueAtTime(90, now + 0.07)
+  body.frequency.setValueAtTime(520, now)
+  body.frequency.exponentialRampToValueAtTime(140, now + 0.07)
   gain.gain.setValueAtTime(0.0001, now)
-  gain.gain.exponentialRampToValueAtTime(0.12, now + 0.006)
+  gain.gain.exponentialRampToValueAtTime(0.22, now + 0.005)
   gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09)
   body.connect(gain)
   gain.connect(bus)
@@ -162,7 +197,7 @@ export function pops(n: number) {
   const grit = c.createBufferSource()
   const veil = c.createGain()
   grit.buffer = noise
-  veil.gain.setValueAtTime(0.06, now)
+  veil.gain.setValueAtTime(0.1, now)
   veil.gain.exponentialRampToValueAtTime(0.0001, now + 0.05)
   grit.connect(veil)
   veil.connect(bus)

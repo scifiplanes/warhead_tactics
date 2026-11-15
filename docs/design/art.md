@@ -17,7 +17,7 @@ Author in these stops. No off-ramp pastels, neon fills, or full-chroma skins.
 | Role | Hex | Use |
 |------|-----|-----|
 | Ink | `#0c0b09` | silhouette holes, deep shade |
-| Mud 0–3 | `#1a1612` `#221e1a` `#2e2a24` `#3a3630` | ground, ash, ruts |
+| Mud 0–3 | `#2a2622` `#322c28` `#3a3630` `#4a463e` | ground, ash, ruts |
 | Coat 0–4 | `#2a2824` `#3a3832` `#4a4640` `#5a564e` `#6a655c` | cloth, drab, timber |
 | Face | `#4a4640` `#5a5448` | muted skin only (1–2 px) |
 | Steel 0–3 | `#1e1c18` `#3a3834` `#6e6e6e` `#a8a49c` | guns, hulls, chrome |

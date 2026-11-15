@@ -403,8 +403,8 @@ const BANDS = [
 ]
 const APEX = ["reach", "mast", "dray", "rust_plow", "post", "bloom", "cluster", "fog", "ball", "amalgam"]
 const ESCORT = ["walker", "roller", "slab", "drone", "coil", "flake"]
-// ponytail: offset DAY matches 0; DAY/2 is midnight
-const DAY_OFF = [0, DAY / 3, (2 * DAY) / 3, DAY / 2]
+// ponytail: noon / late morning / afternoon / early evening — always day-readable at step-off
+const DAY_OFF = [0, DAY / 8, (7 * DAY) / 8, DAY / 6]
 const PROP_W: Record<Ground, [Prop["kind"], number][]> = {
   open: [
     ["wreck", 45],

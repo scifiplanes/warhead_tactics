@@ -2013,10 +2013,10 @@ export function groundTile() {
   mud = cv(128, 128)
   const g = mud.getContext("2d")!
   const rand = rng(7)
-  g.fillStyle = "#2a2622"
+  g.fillStyle = "#3a3630"
   g.fillRect(0, 0, 128, 128)
   // base speckles
-  const cols = ["#241f1c", "#1c1916", "#322c28", "#3a342c", "#201c18"]
+  const cols = ["#322c28", "#2e2a24", "#3a3630", "#4a463e", "#3a342c"]
   for (let i = 0; i < 2200; i++) {
     g.fillStyle = cols[(rand() * cols.length) | 0]
     g.fillRect((rand() * 128) | 0, (rand() * 128) | 0, 1, 1)
@@ -2025,7 +2025,7 @@ export function groundTile() {
   for (let i = 0; i < 14; i++) {
     const x = 2 + ((rand() * 124) | 0)
     const y = 3 + ((rand() * 122) | 0)
-    g.fillStyle = "#3a342c"
+    g.fillStyle = "#5a564e"
     g.fillRect(x, y, 1, 2)
   }
   // large wet / darker patches (8–12 clusters)
@@ -2035,7 +2035,7 @@ export function groundTile() {
     const py = 4 + ((rand() * 120) | 0)
     const sw = 4 + ((rand() * 7) | 0)
     const sh = Math.max(3, sw - 2)
-    g.fillStyle = rand() > 0.5 ? "#1a1612" : "#221e1a"
+    g.fillStyle = rand() > 0.5 ? "#2a2622" : "#322c28"
     g.fillRect(px, py, sw, sh)
   }
   // faint ruts (~6 short horizontal 1px lines, roughly parallel)
@@ -2043,13 +2043,13 @@ export function groundTile() {
     const rx = 3 + ((rand() * 110) | 0)
     const ry = 4 + ((rand() * 120) | 0)
     const rw = 6 + ((rand() * 10) | 0)
-    g.fillStyle = "#1c1814"
+    g.fillStyle = "#2a2622"
     g.fillRect(rx, ry, rw, 1)
     if (rand() > 0.5) g.fillRect(rx + 2, ry + 2, rw - 3, 1)
   }
   // sparse ash speckles (lighter, fewer than mud speckles)
   for (let i = 0; i < 180; i++) {
-    g.fillStyle = rand() > 0.5 ? "#3a342c" : "#4a463e"
+    g.fillStyle = rand() > 0.5 ? "#5a564e" : "#6a655c"
     g.fillRect((rand() * 128) | 0, (rand() * 128) | 0, 1, 1)
   }
   return mud

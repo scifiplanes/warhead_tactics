@@ -2,6 +2,9 @@
 
 Moved from `docs/changelog.md` when that file outgrows its cap.
 
+- **2026-10-25 Fix:** deck difficulty row reads AUTOLOAD (was LOAD); AUTOPLAY stays the bot deploy. `index.html`
+- **2026-10-25 Fix:** exits open one by one (24s stagger after the first at t≥72s), not all at once. `src/sim/world.ts`
+- **2026-10-25 Fix:** rim intent pins (exits, LZ, stash, drops) fan apart so markers stay visible together. `src/view/draw.ts`
 - **2026-10-25 Fix:** exits mark later (t≥72s, after LZ); LZ draws above exits and keeps a larger gold rim pin. `src/sim/world.ts` `src/view/draw.ts`
 - **2026-10-25 Fix:** travel intent UI — steel EXIT chevrons (numbered), gold LZ pad, clearer hold plates/banner. `src/view/draw.ts` `src/sim/world.ts`
 - **2026-10-25 Fix:** muzzle flashes draw after grade at CSS scale (longer, brighter) so they read on the field. `src/view/draw.ts` `src/content/muzzle.ts`

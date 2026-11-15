@@ -22,7 +22,7 @@ src/content/catalog.ts  card and hostile rows
 src/bot/policy.ts       same commands as the stick
 src/view/draw.ts        low-res pixel field
 src/view/anim.ts        foot modes, soft, hull, cables — `docs/design/anim.md`
-src/view/audio.ts       muffled thuds/pops; gesture unlock (mobile)
+src/view/audio.ts       muffled thuds/pops; iOS playback session + gesture unlock
 src/view/sprites.ts     field sprites (art bible density)
 src/content/muzzle.ts   gun tip reach
 src/meta/profile.ts     credits, finds, research, campaign map
